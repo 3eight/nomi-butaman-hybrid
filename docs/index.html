@@ -22,47 +22,68 @@
       <div id="net" class="net" role="status" aria-live="polite">—</div>
     </header>
 
-    <!-- 最重要: 次に蒸す数 -->
-    <section class="hud" aria-labelledby="hud-title">
-      <h2 id="hud-title" class="hud-label">次に蒸す数</h2>
-      <div class="hud-value" id="steam-value" aria-live="polite">—</div>
-      <p class="hud-sub" id="steam-sub">読み込み中…</p>
-      <ul class="hud-breakdown" id="steam-breakdown"></ul>
-    </section>
+    <!-- 画面切替タブ（URL末尾 #kitchen / #register でも指定可） -->
+    <nav class="tabs" role="tablist" aria-label="画面切替">
+      <button type="button" class="tab" role="tab" id="tab-kitchen" aria-controls="view-kitchen" data-view="kitchen">キッチン</button>
+      <button type="button" class="tab" role="tab" id="tab-register" aria-controls="view-register" data-view="register">会計</button>
+    </nav>
 
-    <!-- 受渡登録 -->
-    <section class="panel" aria-labelledby="record-title">
-      <h2 id="record-title" class="panel-title">受渡を記録</h2>
+    <!-- キッチン画面: 最重要の「次に蒸す数」だけを大きく -->
+    <div class="view" id="view-kitchen" role="tabpanel" aria-labelledby="tab-kitchen">
+      <section class="hud" aria-labelledby="hud-title">
+        <h2 id="hud-title" class="hud-label">次に蒸す数</h2>
+        <div class="hud-value" id="steam-value" aria-live="polite">—</div>
+        <p class="hud-sub" id="steam-sub">読み込み中…</p>
+        <ul class="hud-breakdown" id="steam-breakdown"></ul>
+      </section>
 
-      <div class="field" id="product-field" hidden>
-        <span class="field-label">商品</span>
-        <div class="segmented" id="product-options" role="radiogroup" aria-label="商品"></div>
-      </div>
-
-      <div class="field">
-        <span class="field-label">数量</span>
-        <div class="stepper">
-          <button type="button" class="step" id="qty-minus" aria-label="1つ減らす">−</button>
-          <output id="qty" class="qty" aria-live="polite">1</output>
-          <button type="button" class="step" id="qty-plus" aria-label="1つ増やす">＋</button>
+      <section class="stats" aria-label="受渡の状況">
+        <div class="stat">
+          <span class="stat-label">直近30分の受渡</span>
+          <span class="stat-value" id="stat-recent">0</span>
         </div>
-        <div class="quick" id="quick-qty"></div>
-      </div>
+        <div class="stat">
+          <span class="stat-label">今日の受渡</span>
+          <span class="stat-value" id="stat-today">0</span>
+        </div>
+      </section>
+    </div>
 
-      <div class="field">
-        <span class="field-label">方法</span>
-        <div class="segmented" id="method-options" role="radiogroup" aria-label="受渡方法"></div>
-      </div>
+    <!-- 会計画面: 受渡の記録 -->
+    <div class="view" id="view-register" role="tabpanel" aria-labelledby="tab-register" hidden>
+      <section class="panel" aria-labelledby="record-title">
+        <h2 id="record-title" class="panel-title">受渡を記録</h2>
 
-      <button type="button" class="primary" id="submit">受渡完了</button>
-      <p class="toast" id="toast" role="status" aria-live="polite"></p>
-    </section>
+        <div class="field" id="product-field" hidden>
+          <span class="field-label">商品</span>
+          <div class="segmented" id="product-options" role="radiogroup" aria-label="商品"></div>
+        </div>
 
-    <section class="panel" aria-labelledby="recent-title">
-      <h2 id="recent-title" class="panel-title">最近の受渡</h2>
-      <ul class="recent" id="recent"></ul>
-      <button type="button" class="secondary" id="sync-now">今すぐ同期</button>
-    </section>
+        <div class="field">
+          <span class="field-label">数量</span>
+          <div class="stepper">
+            <button type="button" class="step" id="qty-minus" aria-label="1つ減らす">−</button>
+            <output id="qty" class="qty" aria-live="polite">1</output>
+            <button type="button" class="step" id="qty-plus" aria-label="1つ増やす">＋</button>
+          </div>
+          <div class="quick" id="quick-qty"></div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">方法</span>
+          <div class="segmented" id="method-options" role="radiogroup" aria-label="受渡方法"></div>
+        </div>
+
+        <button type="button" class="primary" id="submit">受渡完了</button>
+        <p class="toast" id="toast" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="recent-title">
+        <h2 id="recent-title" class="panel-title">最近の受渡</h2>
+        <ul class="recent" id="recent"></ul>
+        <button type="button" class="secondary" id="sync-now">今すぐ同期</button>
+      </section>
+    </div>
 
     <footer class="foot" id="foot"></footer>
   </main>

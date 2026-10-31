@@ -86,6 +86,29 @@ body {
 .meter { height: 10px; margin: 10px auto 0; max-width: 260px; border-radius: 999px; background: #3a1418; overflow: hidden; }
 .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--red), var(--gold)); }
 
+/* ---- 画面切替タブ ---- */
+.tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px;
+  border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-edge);
+  position: sticky; top: max(6px, env(safe-area-inset-top)); z-index: 5;
+}
+.tab {
+  min-height: var(--tap); border-radius: 12px; border: 2px solid transparent;
+  background: transparent; color: var(--muted); font-size: 20px; font-weight: 800; letter-spacing: .1em;
+}
+.tab[aria-selected="true"] { background: var(--red); border-color: var(--gold); color: #fff; }
+.view { display: grid; gap: 14px; }
+
+/* ---- キッチン: 補助指標 ---- */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat {
+  display: grid; gap: 2px; text-align: center; padding: 12px 8px;
+  border-radius: var(--radius); background: var(--panel); border: 1px solid var(--panel-edge);
+}
+.stat-label { font-size: 15px; color: var(--muted); font-weight: 700; }
+.stat-value { font-size: 40px; font-weight: 800; color: var(--gold-soft); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat-value .unit { font-size: .45em; margin-left: .1em; color: var(--muted); }
+
 /* ---- パネル ---- */
 .panel {
   background: var(--panel);

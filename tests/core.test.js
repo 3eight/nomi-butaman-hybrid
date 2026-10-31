@@ -156,3 +156,14 @@ test('safeCell: 数式として解釈される文字列を無害化する', () =
   assert.equal(Core.safeCell('豚饅'), '豚饅');
   assert.equal(Core.safeCell(5), 5);
 });
+
+test('deliveryStats: 直近30分と当日（日本時間）の受渡数量を数える', () => {
+  const now = jst(2026, 10, 31, 11, 0);
+  const s = Core.deliveryStats([
+    rec('r00000001', jst(2026, 10, 31, 10, 45), 3),  // 直近30分・今日
+    rec('r00000002', jst(2026, 10, 31, 10, 0), 4),   // 今日のみ
+    rec('r00000003', jst(2026, 10, 30, 23, 50), 9),  // 前日（UTCでは同日）
+    rec('r00000004', jst(2026, 10, 31, 11, 5), 50)   // 未来 → 除外
+  ], now, 30);
+  assert.deepEqual(s, { recent: 3, today: 7, recentMinutes: 30 });
+});

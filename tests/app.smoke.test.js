@@ -22,7 +22,7 @@ function makeEl(tag) {
   return el;
 }
 
-function boot(storage) {
+function boot(storage, hash = '') {
   const ids = {};
   const document = {
     hidden: false,
@@ -32,13 +32,15 @@ function boot(storage) {
     addEventListener() {}
   };
   const timers = [];
+  const location = { protocol: 'file:', hash };
+  const history = { replaceState: (a, b, h) => { location.hash = h; } };
   const window = {
     NOMI_CONFIG: undefined, localStorage: storage, fetch: () => Promise.reject(new Error('offline')),
-    addEventListener() {}
+    addEventListener() {}, history, scrollTo() {}
   };
   const ctx = {
     window, document, console, JSON, Date, Math, Promise, Error, TypeError, Object, Array, String, Number,
-    navigator: { onLine: false }, location: { protocol: 'file:' }, crypto: globalThis.crypto,
+    navigator: { onLine: false }, location, history, crypto: globalThis.crypto,
     setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval() {}
   };
   window.window = window;
@@ -46,7 +48,7 @@ function boot(storage) {
   for (const f of ['config.js', 'core.js', 'sync.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(DOCS, f), 'utf8'), ctx, { filename: f });
   }
-  return { ids, timers, ctx };
+  return { ids, timers, ctx, location };
 }
 
 function memoryStorage() {
@@ -85,4 +87,43 @@ test('受渡完了: 数量を選んで記録すると最近の受渡に「未送
   assert.equal(JSON.parse(storage.getItem('nomi.records.v1')).length, 1);
   timers.forEach(fn => fn());
   assert.equal(ids['submit'].disabled, false);
+});
+
+test('タブ: 初期はキッチン画面。会計タブで切り替わり、選択は保存・URLに反映される', () => {
+  const storage = memoryStorage();
+  const { ids, location } = boot(storage);
+  assert.equal(ids['view-kitchen'].hidden, false);
+  assert.equal(ids['view-register'].hidden, true);
+  assert.equal(ids['tab-kitchen'].attrs['aria-selected'], 'true');
+
+  ids['tab-register'].click();
+  assert.equal(ids['view-kitchen'].hidden, true);
+  assert.equal(ids['view-register'].hidden, false);
+  assert.equal(ids['tab-register'].attrs['aria-selected'], 'true');
+  assert.equal(ids['tab-kitchen'].attrs['aria-selected'], 'false');
+  assert.equal(storage.getItem('nomi.view.v1'), 'register');
+  assert.equal(location.hash, '#register');
+
+  // 再読み込みしても会計画面のまま
+  const again = boot(storage);
+  assert.equal(again.ids['view-register'].hidden, false);
+});
+
+test('タブ: URL末尾 #register / #kitchen で直接開ける（保存より優先）', () => {
+  const storage = memoryStorage();
+  storage.setItem('nomi.view.v1', 'kitchen');
+  const { ids } = boot(storage, '#register');
+  assert.equal(ids['view-register'].hidden, false);
+  assert.equal(ids['view-kitchen'].hidden, true);
+});
+
+test('キッチン画面: 会計で記録すると直近30分・今日の受渡数が増える', () => {
+  const storage = memoryStorage();
+  const { ids } = boot(storage);
+  assert.equal(ids['stat-recent'].textContent, '0個');
+  ids['tab-register'].click();
+  ids['quick-qty'].children[1].click(); // 2個
+  ids['submit'].listeners.click[0]();
+  assert.equal(ids['stat-recent'].textContent, '2個');
+  assert.equal(ids['stat-today'].textContent, '2個');
 });

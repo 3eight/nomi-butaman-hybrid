@@ -271,6 +271,27 @@ var NomiCore = (function () {
     return out;
   }
 
+  /** キッチン画面用: 直近N分と当日（日本時間）の受渡数量合計 */
+  function deliveryStats(records, now, recentMinutes) {
+    var nowDate = now ? toDate(now) : new Date();
+    var since = nowDate.getTime() - (recentMinutes || 30) * 60 * 1000;
+    var today = jstParts(nowDate).dateKey;
+    var recent = 0;
+    var todayTotal = 0;
+    var list = records || [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || !r.occurredAt) continue;
+      var t;
+      try { t = toDate(r.occurredAt); } catch (e) { continue; }
+      var q = Number(r.quantity);
+      if (!isFinite(q) || q <= 0 || t.getTime() > nowDate.getTime()) continue;
+      if (t.getTime() >= since) recent += q;
+      if (jstParts(t).dateKey === today) todayTotal += q;
+    }
+    return { recent: recent, today: todayTotal, recentMinutes: recentMinutes || 30 };
+  }
+
   /** スプレッドシートの数式インジェクション対策 */
   function safeCell(value) {
     if (typeof value !== 'string') return value;
@@ -286,6 +307,7 @@ var NomiCore = (function () {
     forecast: forecast,
     summarize: summarize,
     mergeRecords: mergeRecords,
+    deliveryStats: deliveryStats,
     safeCell: safeCell
   };
 })();

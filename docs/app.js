@@ -112,7 +112,40 @@
     $('foot').textContent = foot;
   }
 
-  function renderAll() { renderForecast(); renderRecent(); renderStatus(); }
+  function renderStats() {
+    var s = NomiCore.deliveryStats(sync.getRecords(), new Date(), 30);
+    [['stat-recent', s.recent], ['stat-today', s.today]].forEach(function (pair) {
+      var e = $(pair[0]);
+      e.textContent = String(pair[1]);
+      e.appendChild(el('span', '個', 'unit'));
+    });
+  }
+
+  // ---- 画面切替（キッチン / 会計） ----
+  var VIEWS = ['kitchen', 'register'];
+  var KEY_VIEW = 'nomi.view.v1';
+
+  function viewFromHash() {
+    var h = String(location.hash || '').replace('#', '');
+    return VIEWS.indexOf(h) >= 0 ? h : null;
+  }
+
+  function showView(name, save) {
+    if (VIEWS.indexOf(name) < 0) name = 'kitchen';
+    VIEWS.forEach(function (v) {
+      var active = v === name;
+      $('view-' + v).hidden = !active;
+      $('tab-' + v).setAttribute('aria-selected', String(active));
+      $('tab-' + v).setAttribute('tabindex', active ? '0' : '-1');
+    });
+    if (save) {
+      try { window.localStorage.setItem(KEY_VIEW, name); } catch (e) { /* 保存不可でも切替は有効 */ }
+      if (window.history && history.replaceState) history.replaceState(null, '', '#' + name);
+    }
+    if (window.scrollTo) window.scrollTo(0, 0);
+  }
+
+  function renderAll() { renderForecast(); renderStats(); renderRecent(); renderStatus(); }
 
   function toast(msg, isError) {
     var t = $('toast');
@@ -162,11 +195,17 @@
   window.addEventListener('offline', renderStatus);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) syncNow(); });
 
+  VIEWS.forEach(function (v) {
+    $('tab-' + v).addEventListener('click', function () { showView(v, true); });
+  });
+  window.addEventListener('hashchange', function () { var v = viewFromHash(); if (v) showView(v, true); });
+  showView(viewFromHash() || window.localStorage.getItem(KEY_VIEW) || 'kitchen', false);
+
   renderControls();
   renderAll();
   syncNow();
-  setInterval(renderForecast, 30000);   // 時間経過で目安の対象時間帯が変わる
-  setInterval(syncNow, 120000);         // 他端末の記録を定期取り込み
+  setInterval(function () { renderForecast(); renderStats(); }, 30000);   // 時間経過で目安の対象時間帯が変わる
+  setInterval(syncNow, 60000);          // 他端末の記録を定期取り込み（キッチン画面の更新）
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(function () { /* LINE内ブラウザ等で非対応でも動作は継続 */ });
