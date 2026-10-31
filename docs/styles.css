@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -37,6 +38,7 @@ body {
   gap: 14px;
 }
 
+.app > *, .panel > *, .field > * { min-width: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .brand { margin: 0; font-size: 18px; letter-spacing: .04em; color: var(--gold); }
 .brand span { color: var(--text); font-weight: 600; }
