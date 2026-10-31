@@ -169,6 +169,7 @@ var NomiCore = (function () {
       if (s.dateKey === tSlot.dateKey) continue;
       var q = Number(r.quantity);
       if (!isFinite(q) || q <= 0) continue;
+      if (opt.excludeProducts && opt.excludeProducts.indexOf(r.productId) >= 0) continue;
       if (!dates[s.dateKey]) { dates[s.dateKey] = true; dateCount++; }
       var pid = r.productId || 'unknown';
       totals[pid] = (totals[pid] || 0) + q;
@@ -292,6 +293,299 @@ var NomiCore = (function () {
     return { recent: recent, today: todayTotal, recentMinutes: recentMinutes || 30 };
   }
 
+  /* ================================================================
+   * 蒸し・販売の共有操作（オペレーションログ方式）
+   * 各スマホは「操作」を追記するだけ。全員が同じ操作列から同じ状態を計算する。
+   * 操作IDで重複排除するので、再送・同時操作でも二重計上しない。
+   * ================================================================ */
+  var OP_TYPES = ['batch_start', 'batch_ready', 'batch_cancel', 'waste',
+    'order_create', 'order_paid', 'order_fulfill', 'order_cancel'];
+
+  var KITCHEN_DEFAULTS = {
+    steamMinutes: 40,          // 冷凍から蒸し上がりまで（本人運用値）
+    serviceEvery: 5,           // 有料まん類5個ごとにサービス1個
+    serviceOn: true,
+    friedFromSteamed: true,    // 揚げ品も蒸し上がり在庫から使う（未確認・設定で変更可）
+    lossYenPerPiece: 250,      // 出店者負担ロス単価（確定）
+    tiers: null                // 未指定なら defaultTiers()
+  };
+
+  /** 段の初期構成: 通常1セット目1〜4、2セット目5〜8（5個/段）、電気9〜12（6個/段・実容量未確認） */
+  function defaultTiers() {
+    var out = [];
+    for (var i = 1; i <= 12; i++) {
+      var group = i <= 4 ? '通常1' : i <= 8 ? '通常2' : '電気';
+      out.push({ id: i, group: group, capacity: i <= 8 ? 5 : 6 });
+    }
+    return out;
+  }
+
+  function normalizeOp(input, options) {
+    var now = options && options.now ? toDate(options.now) : new Date();
+    if (!input || typeof input !== 'object') return { ok: false, error: '操作がありません' };
+    var id = sanitizeText(input.id, 64);
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return { ok: false, error: '操作IDが不正です' };
+    var type = String(input.type || '');
+    if (OP_TYPES.indexOf(type) < 0) return { ok: false, error: '未対応の操作です: ' + type };
+    if (!input.payload || typeof input.payload !== 'object' || Array.isArray(input.payload)) {
+      return { ok: false, error: '操作内容が不正です' };
+    }
+    var json = JSON.stringify(input.payload);
+    if (json.length > 4000) return { ok: false, error: '操作内容が大きすぎます' };
+    var at;
+    try { at = toDate(input.at); } catch (e) { return { ok: false, error: '操作日時が不正です' }; }
+    if (at.getTime() > now.getTime() + 10 * 60 * 1000) return { ok: false, error: '操作日時が未来です' };
+    if (at.getTime() < now.getTime() - 3 * 24 * 60 * 60 * 1000) return { ok: false, error: '操作日時が古すぎます' };
+    return {
+      ok: true,
+      op: {
+        id: id, type: type, payload: JSON.parse(json), at: at.toISOString(),
+        date: jstParts(at).dateKey, device: sanitizeText(input.device, 64)
+      }
+    };
+  }
+
+  function isMan(product) { return product === 'butaman' || product === 'anbata'; }
+
+  /** 有料まん類の個数からサービス付与数を計算（無料品・ポテトは数えない） */
+  function serviceEntitled(lines, options) {
+    var opt = merge(KITCHEN_DEFAULTS, options);
+    if (!opt.serviceOn) return 0;
+    var paid = 0;
+    (lines || []).forEach(function (l) { if (isMan(l.product)) paid += Number(l.qty) || 0; });
+    return Math.floor(paid / opt.serviceEvery);
+  }
+
+  /** 注文が蒸し在庫から必要とする個数（商品別） */
+  function orderNeeds(order, options) {
+    var opt = merge(KITCHEN_DEFAULTS, options);
+    var needs = {};
+    (order.lines || []).concat(order.service || []).forEach(function (l) {
+      if (!isMan(l.product)) return;
+      if (l.method === 'fry' && !opt.friedFromSteamed) return;
+      needs[l.product] = (needs[l.product] || 0) + (Number(l.qty) || 0);
+    });
+    return needs;
+  }
+
+  /** 取り出し元の割当: 販売可能→確認待ちの順、蒸し上がりが古い段から */
+  function allocate(sources, needs) {
+    var list = sources.filter(function (s) { return s.remaining > 0 && (s.status === 'ready' || s.status === 'check'); })
+      .sort(function (a, b) {
+        var ra = a.status === 'ready' ? 0 : 1, rb = b.status === 'ready' ? 0 : 1;
+        return ra - rb || a.endAt - b.endAt || a.tier - b.tier;
+      });
+    var allocations = [];
+    var shortage = 0;
+    Object.keys(needs).forEach(function (product) {
+      var left = needs[product];
+      for (var i = 0; i < list.length && left > 0; i++) {
+        var s = list[i];
+        if (s.product !== product || s.remaining <= 0) continue;
+        var take = Math.min(s.remaining, left);
+        s.remaining -= take;
+        left -= take;
+        allocations.push({ batchId: s.batchId, tier: s.tier, product: product, qty: take });
+      }
+      shortage += left;
+    });
+    return { allocations: allocations, shortage: shortage };
+  }
+
+  /** 操作列から現在の状態を計算する（純粋関数） */
+  function buildState(ops, now, options) {
+    var opt = merge(KITCHEN_DEFAULTS, options);
+    var nowMs = (now ? toDate(now) : new Date()).getTime();
+    var steamMs = opt.steamMinutes * 60 * 1000;
+    var tierDefs = opt.tiers || defaultTiers();
+    var tiers = tierDefs.map(function (t) { return { id: t.id, group: t.group, capacity: t.capacity, batches: [] }; });
+    var tierMap = {};
+    tiers.forEach(function (t) { tierMap[t.id] = t; });
+    var batches = {};
+    var orders = {};
+    var orderList = [];
+    var wastes = [];
+    var seen = {};
+
+    var sorted = (ops || []).filter(function (o) {
+      if (!o || !o.id || seen[o.id]) return false;
+      seen[o.id] = true;
+      return true;
+    }).sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : 1); });
+
+    sorted.forEach(function (op) {
+      var p = op.payload || {};
+      var b = p.batchId ? batches[p.batchId] : null;
+      var o = p.orderId ? orders[p.orderId] : null;
+      switch (op.type) {
+        case 'batch_start':
+          if (b || !tierMap[p.tier]) return;
+          var qty = Math.max(0, Math.floor(Number(p.qty) || 0));
+          if (!qty) return;
+          var started = toDate(p.startedAt || op.at).getTime();
+          b = batches[p.batchId] = {
+            batchId: p.batchId, tier: p.tier, product: p.product === 'anbata' ? 'anbata' : 'butaman',
+            qty: qty, remaining: qty, startedAt: new Date(started).toISOString(), endAt: started + steamMs,
+            confirmedAt: null, cancelled: false
+          };
+          tierMap[p.tier].batches.push(b);
+          return;
+        case 'batch_ready':
+          if (b && !b.confirmedAt) b.confirmedAt = op.at;
+          return;
+        case 'batch_cancel':
+          if (b) b.cancelled = true;
+          return;
+        case 'waste':
+          var wq = Math.max(0, Math.floor(Number(p.qty) || 0));
+          if (b) { wq = Math.min(wq, b.remaining); b.remaining -= wq; }
+          if (wq) wastes.push({ batchId: p.batchId || null, product: b ? b.product : p.product, qty: wq, burden: p.burden === 'hq' ? 'hq' : 'store', reason: p.reason || '', at: op.at });
+          return;
+        case 'order_create':
+          if (o) return;
+          o = orders[p.orderId] = {
+            orderId: p.orderId, number: Number(p.number) || 0, lines: p.lines || [], service: p.service || [],
+            serviceDeclined: !!p.serviceDeclined, paid: !!p.paid, createdAt: op.at, device: op.device || '',
+            fulfilled: false, cancelled: false, allocations: [], shortage: 0
+          };
+          orderList.push(o);
+          return;
+        case 'order_paid':
+          if (o) o.paid = true;
+          return;
+        case 'order_cancel':
+          if (o && !o.fulfilled) o.cancelled = true;
+          return;
+        case 'order_fulfill':
+          if (!o || o.fulfilled || o.cancelled) return;
+          o.fulfilled = true;
+          o.paid = o.paid || !!p.paid;
+          o.fulfilledAt = op.at;
+          o.shortage = Number(p.shortage) || 0;
+          (p.allocations || []).forEach(function (a) {
+            var src = batches[a.batchId];
+            var want = Math.max(0, Math.floor(Number(a.qty) || 0));
+            var take = src && !src.cancelled ? Math.min(src.remaining, want) : 0;
+            if (src) src.remaining -= take;
+            if (take) o.allocations.push({ batchId: a.batchId, tier: src.tier, product: src.product, qty: take });
+            o.shortage += want - take;
+          });
+          return;
+      }
+    });
+
+    // 段ごとの状態
+    var totals = { steaming: 0, check: 0, ready: 0, byProduct: {} };
+    var nextReady = null;
+    var sources = [];
+    tiers.forEach(function (t) {
+      t.batches = t.batches.filter(function (x) { return !x.cancelled && x.remaining > 0; });
+      t.batches.forEach(function (x) {
+        x.status = x.confirmedAt ? 'ready' : (nowMs < x.endAt ? 'steaming' : 'check');
+        x.remainingMinutes = Math.max(0, Math.ceil((x.endAt - nowMs) / 60000));
+        x.progress = Math.max(0, Math.min(1, 1 - (x.endAt - nowMs) / steamMs));
+        totals[x.status] += x.remaining;
+        var bp = totals.byProduct[x.product] || (totals.byProduct[x.product] = { steaming: 0, check: 0, ready: 0 });
+        bp[x.status] += x.remaining;
+        if (x.status === 'steaming' && (!nextReady || x.endAt < nextReady.endAt)) {
+          nextReady = { endAt: x.endAt, minutes: x.remainingMinutes, tier: t.id };
+        }
+        sources.push({ batchId: x.batchId, tier: t.id, product: x.product, remaining: x.remaining, status: x.status, endAt: x.endAt });
+      });
+      var qty = 0;
+      t.batches.forEach(function (x) { qty += x.remaining; });
+      t.qty = qty;
+      t.status = !t.batches.length ? 'empty'
+        : t.batches.some(function (x) { return x.status === 'check'; }) ? 'check'
+        : t.batches.some(function (x) { return x.status === 'steaming'; }) ? 'steaming' : 'ready';
+      var steamingBatches = t.batches.filter(function (x) { return x.status === 'steaming'; });
+      t.remainingMinutes = steamingBatches.length ? Math.min.apply(null, steamingBatches.map(function (x) { return x.remainingMinutes; })) : 0;
+      t.progress = steamingBatches.length ? Math.max.apply(null, steamingBatches.map(function (x) { return x.progress; })) : 1;
+      t.free = Math.max(0, t.capacity - qty);
+    });
+
+    // 注文番号の重複（オフライン同時受付）には端末記号を付けて区別
+    var numCount = {};
+    orderList.sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; });
+    orderList.forEach(function (x) { numCount[x.number] = (numCount[x.number] || 0) + 1; });
+    var maxNumber = 0;
+    orderList.forEach(function (x) {
+      x.label = String(x.number) + (numCount[x.number] > 1 ? '-' + (x.device || '?').slice(-2).toUpperCase() : '');
+      if (x.number > maxNumber) maxNumber = x.number;
+      x.delivery = summarizeLines(x.lines.concat(x.service));
+    });
+
+    // 待ち注文に取り出し元を予約（同じ在庫を二重に割り当てない）
+    var waiting = orderList.filter(function (x) { return !x.fulfilled && !x.cancelled; });
+    var reserved = 0;
+    waiting.forEach(function (x) {
+      x.plan = allocate(sources, orderNeeds(x, opt));
+      x.plan.allocations.forEach(function (a) { reserved += a.qty; });
+    });
+
+    var lossStore = 0, lossHq = 0;
+    wastes.forEach(function (w) { if (w.burden === 'store') lossStore += w.qty; else lossHq += w.qty; });
+    var sold = { orders: 0, pieces: 0, service: 0 };
+    orderList.forEach(function (x) {
+      if (!x.fulfilled) return;
+      sold.orders++;
+      x.lines.forEach(function (l) { sold.pieces += Number(l.qty) || 0; });
+      x.service.forEach(function (l) { sold.service += Number(l.qty) || 0; });
+    });
+
+    return {
+      tiers: tiers,
+      totals: totals,
+      available: totals.ready + totals.check - reserved,
+      reserved: reserved,
+      nextReady: nextReady,
+      orders: orderList,
+      waiting: waiting,
+      nextOrderNumber: maxNumber + 1,
+      wastes: wastes,
+      loss: { storePieces: lossStore, storeYen: lossStore * opt.lossYenPerPiece, hqPieces: lossHq },
+      sold: sold,
+      opCount: sorted.length
+    };
+  }
+
+  /** お渡し時の実割当: 予約に関係なく物理在庫から割り当てる（先にお渡しした注文が優先） */
+  function planFulfill(state, order, options) {
+    var sources = [];
+    state.tiers.forEach(function (t) {
+      t.batches.forEach(function (x) {
+        sources.push({ batchId: x.batchId, tier: t.id, product: x.product, remaining: x.remaining, status: x.status, endAt: x.endAt });
+      });
+    });
+    return allocate(sources, orderNeeds(order, options));
+  }
+
+  /** 商品×調理方法ごとのお渡し数 */
+  function summarizeLines(lines) {
+    var map = {};
+    var order = [];
+    (lines || []).forEach(function (l) {
+      var key = l.product + '|' + (l.method || '');
+      if (!map[key]) { map[key] = { product: l.product, method: l.method || '', qty: 0 }; order.push(key); }
+      map[key].qty += Number(l.qty) || 0;
+    });
+    return order.map(function (k) { return map[k]; }).filter(function (x) { return x.qty > 0; });
+  }
+
+  /**
+   * 次に蒸す数の助言: 40分後の時間帯の予測需要 − 今ある供給（販売可能＋確認待ち＋蒸し中 − 予約済み）
+   * 蒸し中は40分以内に必ず蒸し上がるので供給に含める。
+   */
+  function steamAdvice(state, fc, options) {
+    var capacity = (options && options.tierCapacity) || 5;
+    var supply = state.totals.ready + state.totals.check + state.totals.steaming - state.reserved;
+    if (!fc || fc.status !== 'ready') {
+      return { status: 'learning', supply: supply, samples: fc ? fc.samples : 0, needed: fc ? fc.needed : 3 };
+    }
+    var need = Math.max(0, fc.total - supply);
+    return { status: 'ready', demand: fc.total, supply: supply, need: need, tiers: Math.ceil(need / capacity) };
+  }
+
   /** スプレッドシートの数式インジェクション対策 */
   function safeCell(value) {
     if (typeof value !== 'string') return value;
@@ -308,6 +602,17 @@ var NomiCore = (function () {
     summarize: summarize,
     mergeRecords: mergeRecords,
     deliveryStats: deliveryStats,
+    OP_TYPES: OP_TYPES,
+    KITCHEN_DEFAULTS: KITCHEN_DEFAULTS,
+    defaultTiers: defaultTiers,
+    normalizeOp: normalizeOp,
+    serviceEntitled: serviceEntitled,
+    orderNeeds: orderNeeds,
+    allocate: allocate,
+    planFulfill: planFulfill,
+    buildState: buildState,
+    summarizeLines: summarizeLines,
+    steamAdvice: steamAdvice,
     safeCell: safeCell
   };
 })();

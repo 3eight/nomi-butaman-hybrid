@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#120406">
+  <meta name="theme-color" content="#07090c">
   <meta name="format-detection" content="telephone=no">
   <title>能美豚饅 蒸しHUD</title>
-  <meta name="description" content="能美豚饅の受渡記録と40分後の蒸し目安">
+  <meta name="description" content="能美豚饅の蒸し・販売管理（せいろタイマー・注文・在庫）">
   <meta property="og:title" content="能美豚饅 蒸しHUD">
-  <meta property="og:description" content="受渡を記録して、40分後に蒸す数の目安を表示します">
+  <meta property="og:description" content="せいろの段ごとのタイマー、注文・お渡し、在庫をスマホで共有します">
   <meta property="og:type" content="website">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -19,7 +19,10 @@
   <main class="app">
     <header class="topbar">
       <h1 class="brand">能美豚饅 <span>蒸しHUD</span></h1>
-      <div id="net" class="net" role="status" aria-live="polite">—</div>
+      <div class="top-right">
+        <span id="clock" class="clock">--:--</span>
+        <div id="net" class="net" role="status" aria-live="polite">—</div>
+      </div>
     </header>
 
     <!-- 画面切替タブ（URL末尾 #kitchen / #register でも指定可） -->
@@ -28,65 +31,86 @@
       <button type="button" class="tab" role="tab" id="tab-register" aria-controls="view-register" data-view="register">会計</button>
     </nav>
 
-    <!-- キッチン画面: 最重要の「次に蒸す数」だけを大きく -->
+    <!-- ============ キッチン（タイマー係） ============ -->
     <div class="view" id="view-kitchen" role="tabpanel" aria-labelledby="tab-kitchen">
+      <section class="kpis" aria-label="在庫の状況">
+        <article class="kpi kpi-ready">
+          <div class="kpi-label"><span class="idx">01</span>販売可能</div>
+          <div class="kpi-value" id="k-ready">0<span class="unit">個</span></div>
+          <div class="kpi-sub" id="k-ready-sub">—</div>
+        </article>
+        <article class="kpi kpi-steam">
+          <div class="kpi-label"><span class="idx">02</span>蒸し中</div>
+          <div class="kpi-value" id="k-steaming">0<span class="unit">個</span></div>
+          <div class="kpi-sub" id="k-next">—</div>
+        </article>
+      </section>
+
       <section class="hud" aria-labelledby="hud-title">
-        <h2 id="hud-title" class="hud-label">次に蒸す数</h2>
+        <h2 id="hud-title" class="hud-label"><span class="idx">03</span>次に蒸す数</h2>
         <div class="hud-value" id="steam-value" aria-live="polite">—</div>
         <p class="hud-sub" id="steam-sub">読み込み中…</p>
-        <ul class="hud-breakdown" id="steam-breakdown"></ul>
       </section>
 
-      <section class="stats" aria-label="受渡の状況">
-        <div class="stat">
-          <span class="stat-label">直近30分の受渡</span>
-          <span class="stat-value" id="stat-recent">0</span>
+      <section class="tiers-panel" aria-labelledby="tiers-title">
+        <div class="panel-head">
+          <h2 id="tiers-title" class="panel-title">せいろ（段番号をタップ）</h2>
+          <span class="legend"><i class="lg steaming"></i>蒸し中 <i class="lg check"></i>確認 <i class="lg ready"></i>販売可</span>
         </div>
-        <div class="stat">
-          <span class="stat-label">今日の受渡</span>
-          <span class="stat-value" id="stat-today">0</span>
-        </div>
+        <div id="tiers"></div>
       </section>
+      <p class="kitchen-foot" id="k-loss"></p>
     </div>
 
-    <!-- 会計画面: 受渡の記録 -->
+    <!-- ============ 会計（会計係） ============ -->
     <div class="view" id="view-register" role="tabpanel" aria-labelledby="tab-register" hidden>
-      <section class="panel" aria-labelledby="record-title">
-        <h2 id="record-title" class="panel-title">受渡を記録</h2>
-
-        <div class="field" id="product-field" hidden>
-          <span class="field-label">商品</span>
-          <div class="segmented" id="product-options" role="radiogroup" aria-label="商品"></div>
+      <section class="panel" aria-labelledby="order-title">
+        <div class="panel-head">
+          <h2 id="order-title" class="panel-title">新しい注文 <span id="order-no" class="order-no"></span></h2>
+          <button type="button" class="link-btn" id="order-clear">クリア</button>
         </div>
-
-        <div class="field">
-          <span class="field-label">数量</span>
-          <div class="stepper">
-            <button type="button" class="step" id="qty-minus" aria-label="1つ減らす">−</button>
-            <output id="qty" class="qty" aria-live="polite">1</output>
-            <button type="button" class="step" id="qty-plus" aria-label="1つ増やす">＋</button>
-          </div>
-          <div class="quick" id="quick-qty"></div>
+        <div class="menu" id="menu"></div>
+        <div class="service-row" id="service-row" hidden>
+          <div class="service-head">サービス <b id="service-count">0</b>個</div>
+          <div class="segmented small" id="service-options" role="radiogroup" aria-label="サービス品"></div>
         </div>
-
-        <div class="field">
-          <span class="field-label">方法</span>
-          <div class="segmented" id="method-options" role="radiogroup" aria-label="受渡方法"></div>
-        </div>
-
-        <button type="button" class="primary" id="submit">受渡完了</button>
+        <p class="order-summary" id="order-summary">商品をタップしてください</p>
+        <button type="button" class="primary" id="order-paid">会計済みで受付</button>
+        <button type="button" class="secondary" id="order-later">後払いで受付</button>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
       </section>
 
-      <section class="panel" aria-labelledby="recent-title">
-        <h2 id="recent-title" class="panel-title">最近の受渡</h2>
+      <section class="panel" aria-labelledby="waiting-title">
+        <h2 id="waiting-title" class="panel-title">お渡し待ち <span id="waiting-count" class="count-badge">0</span></h2>
+        <ul class="orders" id="waiting"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="done-title">
+        <h2 id="done-title" class="panel-title">本日の実績</h2>
+        <div class="day-stats" id="day-stats"></div>
         <ul class="recent" id="recent"></ul>
         <button type="button" class="secondary" id="sync-now">今すぐ同期</button>
       </section>
+
+      <details class="panel settings">
+        <summary class="panel-title">設定（この端末）</summary>
+        <div id="settings"></div>
+      </details>
     </div>
 
     <footer class="foot" id="foot"></footer>
   </main>
+
+  <!-- 段の操作シート -->
+  <div class="sheet-backdrop" id="sheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-head">
+        <h2 id="sheet-title" class="sheet-title">—</h2>
+        <button type="button" class="sheet-close" id="sheet-close" aria-label="閉じる">×</button>
+      </div>
+      <div id="sheet-body"></div>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script src="core.js"></script>

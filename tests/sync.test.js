@@ -148,3 +148,53 @@ test('端末IDは保存され再利用される', () => {
   assert.equal(a.getMeta().deviceId, b.getMeta().deviceId);
   assert.match(a.getMeta().deviceId, /^dev-/);
 });
+
+test('ops: 操作は即時に端末へ保存、appendOps で送信、listOps で他端末分を取り込む（重複なし）', async () => {
+  const storage = memoryStorage();
+  const sent = [];
+  const remoteOp = { id: 'remote0001', type: 'batch_start', payload: { batchId: 'bz', tier: 2, product: 'butaman', qty: 5 }, at: NOW.toISOString(), date: '2026-10-31', device: 'dev-x' };
+  const fetch = (url, o) => {
+    const body = JSON.parse(o.body);
+    if (body.command === 'appendOps') {
+      sent.push(...body.payload.ops.map(x => x.id));
+      return jsonResponse({ ok: true, results: body.payload.ops.map(x => ({ ok: true, id: x.id })) });
+    }
+    if (body.command === 'listOps') {
+      assert.equal(body.payload.date, '2026-10-31');
+      return jsonResponse({ ok: true, ops: [remoteOp, { ...remoteOp }] });
+    }
+    return jsonResponse({ ok: false });
+  };
+  const s = createSync({ storage, fetch, config: { gasUrl: 'https://example.test/exec' }, now: () => NOW });
+  const mine = s.addOp('batch_start', { batchId: 'b1', tier: 1, product: 'butaman', qty: 5 });
+  assert.equal(mine.date, '2026-10-31');
+  assert.equal(s.getOpQueue().length, 1);
+  assert.throws(() => s.addOp('drop_all', {}), /未対応/);
+  const r = await s.flushOps();
+  assert.equal(r.sent, 1);
+  assert.deepEqual(sent, [mine.id]);
+  assert.equal(s.getOpQueue().length, 0);
+  await s.pullOps();
+  await s.pullOps();
+  assert.equal(s.getOps().length, 2);
+  // 再起動しても残る
+  const s2 = createSync({ storage, fetch, config: { gasUrl: 'https://example.test/exec' }, now: () => NOW });
+  assert.equal(s2.getOps().length, 2);
+});
+
+test('ops: 圏外ではキューに残り、復帰後に同じIDで再送', async () => {
+  let online = false;
+  const ids = [];
+  const fetch = (url, o) => {
+    const body = JSON.parse(o.body);
+    ids.push(...body.payload.ops.map(x => x.id));
+    if (!online) return Promise.reject(new TypeError('Failed to fetch'));
+    return jsonResponse({ ok: true, results: body.payload.ops.map(x => ({ ok: true, id: x.id })) });
+  };
+  const s = createSync({ storage: memoryStorage(), fetch, config: { gasUrl: 'https://example.test/exec' }, now: () => NOW });
+  const a = s.addOp('order_cancel', { orderId: 'o1' });
+  assert.equal((await s.flushOps()).sent, 0);
+  online = true;
+  assert.equal((await s.flushOps()).sent, 1);
+  assert.deepEqual(ids, [a.id, a.id]);
+});

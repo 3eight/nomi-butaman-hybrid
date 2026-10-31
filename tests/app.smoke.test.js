@@ -5,43 +5,59 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const Core = require('../docs/core.js');
 
 const DOCS = path.join(__dirname, '..', 'docs');
 
 function makeEl(tag) {
   const el = {
-    tagName: tag, children: [], listeners: {}, attrs: {}, style: {}, hidden: false, disabled: false, className: '', title: '',
-    _text: '',
+    tagName: tag, children: [], listeners: {}, attrs: {}, style: {}, hidden: false, disabled: false,
+    className: '', title: '', type: '', checked: false, _text: '', parent: null,
     get textContent() { return this._text + this.children.map(c => c.textContent).join(''); },
-    set textContent(v) { this._text = String(v); this.children = []; },
-    appendChild(c) { this.children.push(c); return c; },
+    set textContent(v) { this._text = String(v == null ? '' : v); this.children = []; },
+    appendChild(c) { c.parent = this; this.children.push(c); return c; },
     setAttribute(k, v) { this.attrs[k] = String(v); },
     addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
-    click() { (this.listeners.click || []).forEach(fn => fn()); }
+    click() { (this.listeners.click || []).forEach(fn => fn({ target: this, stopPropagation() {} })); }
   };
   return el;
 }
 
-function boot(storage, hash = '', opts = {}) {
+function all(root, pred, out = []) {
+  if (!root || !root.children) return out;
+  for (const c of root.children) { if (pred(c)) out.push(c); all(c, pred, out); }
+  return out;
+}
+const byText = (root, text) => all(root, c => c.tagName === 'button' && c.textContent.includes(text))[0];
+
+function memoryStorage(init = {}) {
+  const m = new Map(Object.entries(init));
+  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+}
+
+function boot(storage, opts = {}) {
   const ids = {};
+  const body = makeEl('body');
   const document = {
-    hidden: false,
+    hidden: false, body,
     getElementById: id => ids[id] || (ids[id] = makeEl('div')),
     createElement: tag => makeEl(tag),
+    createElementNS: (ns, tag) => makeEl(tag),
     createTextNode: t => ({ textContent: String(t) }),
     addEventListener() {}
   };
-  const timers = [];
-  const location = { protocol: 'file:', hash };
+  ids.sheet = makeEl('div'); ids.sheet.hidden = true;
+  const location = { protocol: 'file:', hash: opts.hash || '' };
   const history = { replaceState: (a, b, h) => { location.hash = h; } };
   const window = {
-    NOMI_CONFIG: undefined, localStorage: storage, fetch: opts.fetch || (() => Promise.reject(new Error('offline'))),
-    addEventListener() {}, history, scrollTo() {}
+    NOMI_CONFIG: undefined, localStorage: storage,
+    fetch: opts.fetch || (() => Promise.reject(new Error('offline'))),
+    addEventListener() {}, history, scrollTo() {}, confirm: () => true
   };
   const ctx = {
     window, document, console, JSON, Date, Math, Promise, Error, TypeError, Object, Array, String, Number,
     navigator: { onLine: opts.online !== false }, location, history, crypto: globalThis.crypto,
-    setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval() {}
+    setTimeout: () => 0, clearTimeout() {}, setInterval() {}
   };
   window.window = window;
   vm.createContext(ctx);
@@ -49,109 +65,141 @@ function boot(storage, hash = '', opts = {}) {
     vm.runInContext(fs.readFileSync(path.join(DOCS, f), 'utf8'), ctx, { filename: f });
     if (f === 'config.js' && opts.config) Object.assign(window.NOMI_CONFIG, opts.config);
   }
-  return { ids, timers, ctx, location };
+  return { ids, ctx, location, body };
 }
-
-function memoryStorage() {
-  const m = new Map();
-  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
-}
-
-test('初期表示: データ不足なら「学習中」を最大表示し、商品が1つなら商品欄を隠す', () => {
-  const { ids } = boot(memoryStorage());
-  assert.equal(ids['steam-value'].textContent, '学習中');
-  assert.match(ids['steam-value'].className, /learning/);
-  assert.match(ids['steam-sub'].textContent, /0\/3回/);
-  assert.equal(ids['product-field'].hidden, true);
-  assert.equal(ids['method-options'].children.length, 3);
-  assert.equal(ids['quick-qty'].children.length, 4);
-  assert.equal(ids['net'].textContent, '接続確認中…');
-});
 
 const tick = () => new Promise(r => setImmediate(r));
+const MIN = 60000;
+function op(type, payload, msAgo = 0, device = 'dev-other') {
+  const at = new Date(Date.now() - msAgo).toISOString();
+  return { id: 'op' + Math.random().toString(36).slice(2, 12), type, payload, at, date: Core.jstParts(at).dateKey, device };
+}
+function storageWithOps(ops) { return memoryStorage({ 'nomi.ops.v1': JSON.stringify(ops) }); }
+const LOCAL = { config: { gasUrl: '' } };
 
-test('接続表示: GAS未設定なら「端末内のみ」', () => {
-  const { ids } = boot(memoryStorage(), '', { config: { gasUrl: '' } });
-  assert.equal(ids['net'].textContent, '端末内のみ');
-});
-
-test('接続表示: GASと通信できたら「共有接続済み」', async () => {
-  const fetch = (url, o) => Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, records: [] }) });
-  const { ids } = boot(memoryStorage(), '', { fetch, config: { gasUrl: 'https://example.test/exec' } });
-  for (let i = 0; i < 10; i++) await tick();
-  assert.equal(ids['net'].textContent, '共有接続済み');
-  assert.match(ids['foot'].textContent, /最終同期/);
-});
-
-test('接続表示: 通信に失敗したら「再接続中」', async () => {
-  const { ids } = boot(memoryStorage(), '', { config: { gasUrl: 'https://example.test/exec' } });
-  for (let i = 0; i < 10; i++) await tick();
-  assert.equal(ids['net'].textContent, '再接続中');
-});
-
-test('受渡完了: 数量を選んで記録すると最近の受渡に「未送信」で並ぶ', () => {
-  const storage = memoryStorage();
-  const { ids, timers } = boot(storage);
-  ids['quick-qty'].children[2].click();      // 5個
-  ids['qty-plus'].listeners.click[0]();      // 6個
-  assert.equal(ids['qty'].textContent, '6');
-  ids['method-options'].children[1].click(); // 予約受取
-  ids['submit'].listeners.click[0]();
-  assert.match(ids['toast'].textContent, /記録しました：豚饅 ×6/);
-  assert.equal(ids['qty'].textContent, '1');
-  assert.equal(ids['submit'].disabled, true); // 連打防止
-  const recent = ids['recent'].children;
-  assert.equal(recent.length, 1);
-  assert.match(recent[0].textContent, /豚饅 ×6（予約受取）/);
-  assert.match(recent[0].textContent, /未送信/);
-  // 連打しても二重登録されない
-  ids['submit'].listeners.click[0]();
-  assert.equal(JSON.parse(storage.getItem('nomi.records.v1')).length, 1);
-  timers.forEach(fn => fn());
-  assert.equal(ids['submit'].disabled, false);
-});
-
-test('タブ: 初期はキッチン画面。会計タブで切り替わり、選択は保存・URLに反映される', () => {
-  const storage = memoryStorage();
-  const { ids, location } = boot(storage);
+test('初期表示: キッチン画面に3つの主表示と12段のせいろ', () => {
+  const { ids } = boot(memoryStorage(), LOCAL);
   assert.equal(ids['view-kitchen'].hidden, false);
-  assert.equal(ids['view-register'].hidden, true);
-  assert.equal(ids['tab-kitchen'].attrs['aria-selected'], 'true');
+  assert.equal(ids['k-ready'].textContent, '0個');
+  assert.equal(ids['k-steaming'].textContent, '0個');
+  assert.equal(ids['steam-value'].textContent, '学習中');
+  const tiles = all(ids.tiers, c => c.attrs && c.attrs['data-tier']);
+  assert.equal(tiles.length, 12);
+  assert.match(ids.tiers.textContent, /通常せいろ 1セット目（5個\/段）/);
+  assert.match(ids.tiers.textContent, /電気せいろ（6個\/段・実容量未確認）/);
+  assert.equal(ids.net.textContent, '端末内のみ');
+});
 
-  ids['tab-register'].click();
-  assert.equal(ids['view-kitchen'].hidden, true);
+test('キッチン: 空き段をタップ→蒸し開始で、段が蒸し中（残り40分）になる', () => {
+  const storage = memoryStorage();
+  const { ids } = boot(storage, LOCAL);
+  all(ids.tiers, c => c.attrs && c.attrs['data-tier'] === '3')[0].click();
+  assert.equal(ids.sheet.hidden, false);
+  assert.equal(ids['sheet-title'].textContent, '3段（通常1セット目・5個）');
+  assert.equal(all(ids['sheet-body'], c => c.className === 'qty')[0].textContent, '5'); // 初期値=空き容量
+  byText(ids['sheet-body'], 'あんバタまん').click();
+  byText(ids['sheet-body'], '蒸し開始').click();
+  assert.equal(ids.sheet.hidden, true);
+  assert.equal(ids['k-steaming'].textContent, '5個');
+  assert.match(ids['k-next'].textContent, /3段 あと40分/);
+  const ops = JSON.parse(storage.getItem('nomi.ops.v1'));
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].type, 'batch_start');
+  assert.deepEqual([ops[0].payload.tier, ops[0].payload.product, ops[0].payload.qty], [3, 'anbata', 5]);
+});
+
+test('キッチン: 40分経過で「確認」表示、蒸し上がり確認で販売可能に', () => {
+  const storage = storageWithOps([op('batch_start', { batchId: 'b1aaaaaaaa', tier: 9, product: 'butaman', qty: 6 }, 41 * MIN)]);
+  const { ids } = boot(storage, LOCAL);
+  const tile = all(ids.tiers, c => c.attrs && c.attrs['data-tier'] === '9')[0];
+  assert.match(tile.className, /check/);
+  assert.equal(ids['k-ready'].textContent, '0個');
+  assert.match(ids['k-ready-sub'].textContent, /確認待ち 6/);
+  tile.click();
+  byText(ids['sheet-body'], '蒸し上がり確認').click();
+  assert.equal(ids['k-ready'].textContent, '6個');
+});
+
+test('会計: 6個注文でサービス1個、受付→お渡しで段の在庫が減り実績と学習記録に残る', () => {
+  const storage = storageWithOps([
+    op('batch_start', { batchId: 'b1aaaaaaaa', tier: 1, product: 'butaman', qty: 5 }, 50 * MIN),
+    op('batch_ready', { batchId: 'b1aaaaaaaa' }, 5 * MIN),
+    op('batch_start', { batchId: 'b2aaaaaaaa', tier: 2, product: 'butaman', qty: 5 }, 45 * MIN),
+    op('batch_ready', { batchId: 'b2aaaaaaaa' }, 4 * MIN)
+  ]);
+  const { ids } = boot(storage, { ...LOCAL, hash: '#register' });
   assert.equal(ids['view-register'].hidden, false);
-  assert.equal(ids['tab-register'].attrs['aria-selected'], 'true');
-  assert.equal(ids['tab-kitchen'].attrs['aria-selected'], 'false');
+  assert.equal(ids['order-no'].textContent, '#1');
+  const butaSteam = () => all(ids.menu, c => c.className.startsWith('menu-item') && c.textContent.startsWith('豚まん蒸し'))[0];
+  for (let i = 0; i < 6; i++) butaSteam().click();
+  assert.equal(ids['service-row'].hidden, false);
+  assert.equal(ids['service-count'].textContent, '1');
+  assert.match(ids['order-summary'].textContent, /お渡し合計 7個（うちサービス1） ・ 金額 未設定/);
+  ids['order-paid'].click();
+  assert.equal(ids['waiting-count'].textContent, '1');
+  assert.match(ids.waiting.textContent, /#1/);
+  assert.match(ids.waiting.textContent, /豚まん 蒸し×6 ＋サービス 豚まん 蒸し×1/);
+  assert.match(ids.waiting.textContent, /取り出し: ①段 5個 ・ ②段 2個/);
+  assert.equal(ids['k-ready'].textContent, '10個');
+  assert.match(ids['k-ready-sub'].textContent, /予約 7/);
+
+  byText(ids.waiting, 'お渡し完了').click();
+  assert.equal(ids['waiting-count'].textContent, '0');
+  assert.equal(ids['k-ready'].textContent, '3個');
+  assert.match(ids['day-stats'].textContent, /1注文6販売（有料）1サービス/);
+  const records = JSON.parse(storage.getItem('nomi.records.v1'));
+  assert.equal(records.length, 1);
+  assert.deepEqual([records[0].productId, records[0].quantity, records[0].method], ['butaman_steam', 7, '蒸し']);
+  assert.equal(ids['order-no'].textContent, '#2');
+});
+
+test('会計: サービス辞退・後払い・取消', () => {
+  const storage = memoryStorage();
+  const { ids } = boot(storage, { ...LOCAL, hash: '#register' });
+  const item = name => all(ids.menu, c => c.className.startsWith('menu-item') && c.textContent.startsWith(name))[0];
+  for (let i = 0; i < 5; i++) item('あんバタまん揚げ').click();
+  byText(ids['service-options'], '辞退').click();
+  assert.match(ids['order-summary'].textContent, /お渡し合計 5個 /);
+  ids['order-later'].click();
+  assert.match(ids.waiting.textContent, /未払い/);
+  assert.match(ids.waiting.textContent, /サービス辞退/);
+  assert.match(ids.waiting.textContent, /不足 5個/);
+  byText(ids.waiting, '取消').click();
+  assert.equal(ids['waiting-count'].textContent, '0');
+});
+
+test('共有: 他のスマホの操作を取り込み「共有接続済み」になる', async () => {
+  const remote = [op('batch_start', { batchId: 'bxaaaaaaaa', tier: 5, product: 'butaman', qty: 5 }, 10 * MIN)];
+  const calls = [];
+  const fetch = (url, o) => {
+    const body = JSON.parse(o.body);
+    calls.push(body.command);
+    const res = body.command === 'listOps' ? { ok: true, ops: remote } : body.command === 'listDeliveries' ? { ok: true, records: [] } : { ok: true, results: [] };
+    return Promise.resolve({ ok: true, status: 200, json: async () => res });
+  };
+  const { ids } = boot(memoryStorage(), { fetch, config: { gasUrl: 'https://example.test/exec' } });
+  for (let i = 0; i < 20; i++) await tick();
+  assert.equal(ids.net.textContent, '共有接続済み');
+  assert.equal(ids['k-steaming'].textContent, '5個');
+  assert.match(ids['k-next'].textContent, /5段 あと30分/);
+  assert.ok(calls.includes('listOps'));
+});
+
+test('圏外: 操作は端末に残り「圏外 ・ 未送信」と表示', () => {
+  const { ids } = boot(memoryStorage(), { online: false, config: { gasUrl: 'https://example.test/exec' } });
+  all(ids.tiers, c => c.attrs && c.attrs['data-tier'] === '1')[0].click();
+  byText(ids['sheet-body'], '蒸し開始').click();
+  assert.equal(ids.net.textContent, '圏外 ・ 未送信1');
+  assert.equal(ids['k-steaming'].textContent, '5個');
+});
+
+test('タブ: 会計タブで切り替わり、選択は保存・URLに反映される', () => {
+  const storage = memoryStorage();
+  const { ids, location } = boot(storage, LOCAL);
+  ids['tab-register'].click();
+  assert.equal(ids['view-register'].hidden, false);
+  assert.equal(ids['view-kitchen'].hidden, true);
   assert.equal(storage.getItem('nomi.view.v1'), 'register');
   assert.equal(location.hash, '#register');
-
-  // 再読み込みしても会計画面のまま
-  const again = boot(storage);
-  assert.equal(again.ids['view-register'].hidden, false);
-});
-
-test('タブ: URL末尾 #register / #kitchen で直接開ける（保存より優先）', () => {
-  const storage = memoryStorage();
-  storage.setItem('nomi.view.v1', 'kitchen');
-  const { ids } = boot(storage, '#register');
-  assert.equal(ids['view-register'].hidden, false);
-  assert.equal(ids['view-kitchen'].hidden, true);
-});
-
-test('キッチン画面: 会計で記録すると直近30分・今日の受渡数が増える', () => {
-  const storage = memoryStorage();
-  const { ids } = boot(storage);
-  assert.equal(ids['stat-recent'].textContent, '0個');
-  ids['tab-register'].click();
-  ids['quick-qty'].children[1].click(); // 2個
-  ids['submit'].listeners.click[0]();
-  assert.equal(ids['stat-recent'].textContent, '2個');
-  assert.equal(ids['stat-today'].textContent, '2個');
-});
-
-test('接続表示: 端末が圏外なら「圏外」と未送信件数', () => {
-  const { ids } = boot(memoryStorage(), '', { online: false, config: { gasUrl: 'https://example.test/exec' } });
-  ids['submit'].listeners.click[0]();
-  assert.equal(ids['net'].textContent, '圏外 ・ 未送信1');
+  assert.equal(boot(storage, LOCAL).ids['view-register'].hidden, false);
 });

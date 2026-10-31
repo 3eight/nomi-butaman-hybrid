@@ -14,6 +14,8 @@
 
 var SHEET_RECORDS = '受渡記録';
 var SHEET_KNOWLEDGE = '販売ナレッジ';
+var SHEET_OPS = '操作ログ';
+var OPS_HEADERS = ['操作ID', '出店日', '種類', '内容', '端末ID', '発生時刻', '受信時刻'];
 var RECORD_HEADERS = ['記録ID', '受渡日時', '日付', '曜日', '時刻', '時間帯', '商品ID', '商品名', '数量', '方法', '端末ID', '受信日時'];
 var KNOWLEDGE_HEADERS = ['曜日', '時間帯', '商品ID', '商品名', '実績回数', '合計数量', '1回平均', '状態', '更新日時'];
 var LOCK_TIMEOUT_MS = 10000;
@@ -26,7 +28,9 @@ var COMMANDS = {
   recordDeliveries: cmdRecordDeliveries,
   listDeliveries: cmdListDeliveries,
   getForecast: cmdGetForecast,
-  rebuildKnowledge: cmdRebuildKnowledge
+  rebuildKnowledge: cmdRebuildKnowledge,
+  appendOps: cmdAppendOps,
+  listOps: cmdListOps
 };
 
 function doGet(e) {
@@ -171,6 +175,60 @@ function cmdRebuildKnowledge() {
   }
 }
 
+/** 蒸し・販売の共有操作を追記（操作IDで重複防止） */
+function cmdAppendOps(payload) {
+  var input = payload.ops;
+  if (!Array.isArray(input) || input.length === 0) return fail_('invalid', '操作がありません');
+  if (input.length > MAX_BATCH) return fail_('invalid', '一度に送れるのは' + MAX_BATCH + '件までです');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(LOCK_TIMEOUT_MS)) return fail_('busy', '混み合っています。自動で再送します', true);
+  try {
+    var sheet = getSheet_(SHEET_OPS, OPS_HEADERS);
+    var cache = CacheService.getScriptCache();
+    var existing = loadIdSet_(sheet);
+    var now = new Date();
+    var rows = [];
+    var results = [];
+    for (var i = 0; i < input.length; i++) {
+      var n = NomiCore.normalizeOp(input[i], { now: now });
+      if (!n.ok) { results.push({ ok: false, id: input[i] && input[i].id, error: n.error }); continue; }
+      var op = n.op;
+      if (existing[op.id] || cache.get('op:' + op.id)) { results.push({ ok: true, id: op.id, duplicate: true }); continue; }
+      existing[op.id] = true;
+      rows.push([op.id, op.date, op.type, JSON.stringify(op.payload), op.device, op.at, now.toISOString()].map(NomiCore.safeCell));
+      results.push({ ok: true, id: op.id, duplicate: false });
+    }
+    if (rows.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, OPS_HEADERS.length).setValues(rows);
+      SpreadsheetApp.flush();
+      results.forEach(function (r) { if (r.ok && !r.duplicate) cache.put('op:' + r.id, '1', DUP_CACHE_SECONDS); });
+    }
+    return { ok: true, saved: rows.length, results: results };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** 指定した出店日（日本時間の日付）の操作を返す */
+function cmdListOps(payload) {
+  var date = String(payload.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail_('invalid', '日付が不正です');
+  var sheet = getSheet_(SHEET_OPS, OPS_HEADERS);
+  var last = sheet.getLastRow();
+  var ops = [];
+  if (last >= 2) {
+    var values = sheet.getRange(2, 1, last - 1, OPS_HEADERS.length).getValues();
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      if (!v[0] || String(v[1]) !== date) continue;
+      var payloadObj;
+      try { payloadObj = JSON.parse(String(v[3])); } catch (e) { continue; }
+      ops.push({ id: String(v[0]), date: String(v[1]), type: String(v[2]), payload: payloadObj, device: String(v[4]), at: String(v[5]) });
+    }
+  }
+  return { ok: true, date: date, ops: ops, serverTime: new Date().toISOString() };
+}
+
 /** 時間主導トリガー用（例: 毎晩1回） */
 function rebuildKnowledgeTrigger() {
   return cmdRebuildKnowledge();
@@ -183,6 +241,7 @@ function rebuildKnowledgeTrigger() {
 function setup() {
   getSheet_(SHEET_RECORDS, RECORD_HEADERS);
   getSheet_(SHEET_KNOWLEDGE, KNOWLEDGE_HEADERS);
+  getSheet_(SHEET_OPS, OPS_HEADERS);
   var exists = ScriptApp.getProjectTriggers().some(function (t) {
     return t.getHandlerFunction() === 'rebuildKnowledgeTrigger';
   });
@@ -207,6 +266,9 @@ function getSheet_(name, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
     // 日付・時刻文字列がシート側で自動変換されないよう、数量以外の文字列列はテキスト書式に固定
+    if (name === SHEET_OPS) {
+      sheet.getRange(1, 1, sheet.getMaxRows(), OPS_HEADERS.length).setNumberFormat('@');
+    }
     if (name === SHEET_RECORDS) {
       sheet.getRange(1, 1, sheet.getMaxRows(), 8).setNumberFormat('@');
       sheet.getRange(1, 10, sheet.getMaxRows(), 3).setNumberFormat('@');

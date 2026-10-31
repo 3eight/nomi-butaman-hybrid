@@ -259,3 +259,31 @@ test('setup: シートを作成し、ナレッジ再集計トリガーを重複�
   assert.equal(env.sheets['受渡記録'].rows[0][0], '記録ID');
   assert.equal(env.sheets['販売ナレッジ'].rows[0][0], '曜日');
 });
+
+test('appendOps / listOps: 操作ログを追記し、出店日で取り出す（重複防止・ロック）', () => {
+  const env = createEnv();
+  const now = new Date();
+  const mk = (id, type, payload) => ({ id, type, payload, at: now.toISOString(), device: 'dev-1' });
+  const ops = [mk('opaaaaaaaa1', 'batch_start', { batchId: 'b1', tier: 1, product: 'butaman', qty: 5 }), mk('opaaaaaaaa2', 'batch_ready', { batchId: 'b1' })];
+  const res = env.post({ command: 'appendOps', payload: { ops } });
+  assert.equal(res.ok, true);
+  assert.equal(res.saved, 2);
+  const again = env.post({ command: 'appendOps', payload: { ops: [ops[0], mk('bad', 'batch_start', {})] } });
+  assert.equal(again.saved, 0);
+  assert.equal(again.results[0].duplicate, true);
+  assert.equal(again.results[1].ok, false);
+  const sheet = env.sheets['操作ログ'];
+  assert.equal(sheet.rows.length, 3);
+  assert.equal(env.lockStats.releases, env.lockStats.tries);
+
+  const date = env.ctx.NomiCore.jstParts(now).dateKey;
+  const list = env.post({ command: 'listOps', payload: { date } });
+  assert.equal(list.ok, true);
+  assert.equal(list.ops.length, 2);
+  assert.deepEqual(list.ops[0].payload, { batchId: 'b1', tier: 1, product: 'butaman', qty: 5 });
+  assert.equal(env.post({ command: 'listOps', payload: { date: '2000-01-01' } }).ops.length, 0);
+  assert.equal(env.post({ command: 'listOps', payload: { date: 'x' } }).code, 'invalid');
+
+  env.lockAvailable = false;
+  assert.equal(env.post({ command: 'appendOps', payload: { ops: [mk('opaaaaaaaa3', 'batch_ready', { batchId: 'b1' })] } }).code, 'busy');
+});

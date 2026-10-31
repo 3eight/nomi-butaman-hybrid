@@ -14,6 +14,9 @@ var NomiSync = (function () {
   var KEY_QUEUE = 'nomi.queue.v1';
   var KEY_DEVICE = 'nomi.device.v1';
   var KEY_META = 'nomi.meta.v1';
+  var KEY_OPS = 'nomi.ops.v1';
+  var KEY_OPQ = 'nomi.opq.v1';
+  var KEEP_OP_DAYS = 3;
   var KEEP_DAYS = 90;
   var BATCH = 50;
 
@@ -48,6 +51,9 @@ var NomiSync = (function () {
     var records = load(KEY_RECORDS, []);
     var queue = load(KEY_QUEUE, []);
     var meta = load(KEY_META, { lastSyncAt: null, lastError: null });
+    var ops = load(KEY_OPS, []);
+    var opQueue = load(KEY_OPQ, []);
+    var flushingOps = null;
     var deviceId = storage.getItem(KEY_DEVICE);
     if (!deviceId) { deviceId = 'dev-' + makeId(); storage.setItem(KEY_DEVICE, deviceId); }
 
@@ -56,6 +62,10 @@ var NomiSync = (function () {
       records = records.filter(function (r) { return new Date(r.occurredAt).getTime() >= cutoff; });
       save(KEY_RECORDS, records);
       save(KEY_QUEUE, queue);
+      var opCutoff = clock().getTime() - KEEP_OP_DAYS * 86400000;
+      ops = ops.filter(function (o) { return new Date(o.at).getTime() >= opCutoff; });
+      save(KEY_OPS, ops);
+      save(KEY_OPQ, opQueue);
       save(KEY_META, meta);
     }
 
@@ -173,10 +183,84 @@ var NomiSync = (function () {
       });
     }
 
+    /* ---- 蒸し・販売の共有操作 ---- */
+    function todayKey() { return Core.jstParts(clock()).dateKey; }
+
+    /** 操作を記録（オフラインでも即座に反映。送信は flushOps） */
+    function addOp(type, payload) {
+      var n = Core.normalizeOp({ id: makeId(), type: type, payload: payload, at: clock().toISOString(), device: deviceId }, { now: clock() });
+      if (!n.ok) throw new Error(n.error);
+      n.op.pending = true;
+      ops.push(n.op);
+      opQueue.push(n.op);
+      persist();
+      return n.op;
+    }
+
+    function getOps(date) {
+      var d = date || todayKey();
+      return ops.filter(function (o) { return o.date === d; });
+    }
+
+    function flushOps() {
+      if (flushingOps) return flushingOps;
+      if (!opQueue.length) return Promise.resolve({ sent: 0, remaining: 0 });
+      if (!cfg.gasUrl) return Promise.resolve({ sent: 0, remaining: opQueue.length, skipped: true });
+      var batch = opQueue.slice(0, BATCH).map(function (o) {
+        return { id: o.id, type: o.type, payload: o.payload, at: o.at, device: o.device };
+      });
+      flushingOps = call('appendOps', { ops: batch }).then(function (res) {
+        if (!res || !res.ok) {
+          meta.lastError = (res && res.error) || '送信失敗';
+          persist();
+          return { sent: 0, remaining: opQueue.length, error: meta.lastError };
+        }
+        var done = {};
+        res.results.forEach(function (r) {
+          if (!r || !r.id) return;
+          done[r.id] = true;
+          ops.forEach(function (o) {
+            if (o.id === r.id) { delete o.pending; if (!r.ok) o.syncError = r.error; }
+          });
+        });
+        opQueue = opQueue.filter(function (o) { return !done[o.id]; });
+        meta.lastSyncAt = clock().toISOString();
+        meta.lastError = null;
+        persist();
+        return { sent: Object.keys(done).length, remaining: opQueue.length };
+      }, function (err) {
+        meta.lastError = '未送信（電波待ち）: ' + ((err && err.message) || err);
+        persist();
+        return { sent: 0, remaining: opQueue.length, error: meta.lastError };
+      }).then(function (result) {
+        flushingOps = null;
+        if (result.sent > 0 && opQueue.length) return flushOps();
+        return result;
+      });
+      return flushingOps;
+    }
+
+    /** 他のスマホの操作を取り込む（当日分） */
+    function pullOps(date) {
+      if (!cfg.gasUrl) return Promise.resolve({ skipped: true });
+      return call('listOps', { date: date || todayKey() }).then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || '取得失敗');
+        var known = {};
+        ops.forEach(function (o) { known[o.id] = true; });
+        var added = 0;
+        (res.ops || []).forEach(function (o) {
+          if (!known[o.id]) { ops.push(o); known[o.id] = true; added++; }
+        });
+        meta.lastSyncAt = clock().toISOString();
+        persist();
+        return { added: added };
+      });
+    }
+
     function forecast(at) {
       return Core.forecast(records, at || clock(), {
         leadMinutes: cfg.leadMinutes, slotMinutes: cfg.slotMinutes,
-        minSamples: cfg.minSamples, lookbackDays: cfg.lookbackDays
+        minSamples: cfg.minSamples, lookbackDays: cfg.lookbackDays, excludeProducts: cfg.forecastExclude || ['potato']
       });
     }
 
@@ -188,6 +272,12 @@ var NomiSync = (function () {
       call: call,
       getRecords: function () { return records.slice(); },
       getQueue: function () { return queue.slice(); },
+      addOp: addOp,
+      getOps: getOps,
+      flushOps: flushOps,
+      pullOps: pullOps,
+      todayKey: todayKey,
+      getOpQueue: function () { return opQueue.slice(); },
       getMeta: function () { return { lastSyncAt: meta.lastSyncAt, lastError: meta.lastError, deviceId: deviceId }; }
     };
   }
