@@ -70,7 +70,7 @@ function createEnv({ props = {}, lockAvailable = true } = {}) {
     CacheService: {
       getScriptCache: () => ({ get: k => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v) })
     },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); } }) },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput: content => ({ content, mime: null, setMimeType(m) { this.mime = m; return this; } })
@@ -286,4 +286,31 @@ test('appendOps / listOps: 操作ログを追記し、出店日で取り出す�
 
   env.lockAvailable = false;
   assert.equal(env.post({ command: 'appendOps', payload: { ops: [mk('opaaaaaaaa3', 'batch_ready', { batchId: 'b1' })] } }).code, 'busy');
+});
+
+test('getCatalog / saveCatalog: 商品マスターを版番号つきで保存し、古い版からの上書きを拒否', () => {
+  const env = createEnv();
+  assert.equal(env.post({ command: 'getCatalog' }).catalog, null);
+  const catalog = {
+    products: [
+      { id: 'butaman', name: '豚まん', short: '豚', man: true, methods: ['steam', 'fry'], prices: { steam: 500, fry: 550 }, enabled: true },
+      { id: 'potato', name: '=ポテト', short: 'ポテト', man: false, methods: [], prices: { '': 300 }, enabled: false }
+    ],
+    options: { serviceOn: true, serviceEvery: 5, friedFromSteamed: false }
+  };
+  const saved = env.post({ command: 'saveCatalog', payload: { catalog, baseVersion: 0 } });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.catalog.version, 1);
+  assert.equal(env.post({ command: 'getCatalog' }).catalog.products[0].prices.fry, 550);
+  const sheet = env.sheets['商品マスター'];
+  assert.equal(sheet.rows[0][1], '商品ID');
+  assert.deepEqual(sheet.rows[1].slice(1, 8), ['butaman', '豚まん', '豚', 'はい', '蒸し・揚げ', '蒸し:500円 / 揚げ:550円', '販売中']);
+  assert.equal(sheet.rows[2][2], "'=ポテト");
+
+  const stale = env.post({ command: 'saveCatalog', payload: { catalog, baseVersion: 0 } });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, 'conflict');
+  assert.equal(stale.catalog.version, 1);
+  assert.equal(env.post({ command: 'saveCatalog', payload: { catalog: { products: [{ id: 'x', name: '' }] }, baseVersion: 1 } }).code, 'invalid');
+  assert.equal(env.lockStats.releases, env.lockStats.tries);
 });

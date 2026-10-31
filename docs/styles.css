@@ -58,13 +58,13 @@ body::before {
 
 /* ---- タブ ---- */
 .tabs {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 4px;
   background: #120b09; border: 1px solid var(--line);
   position: sticky; top: max(4px, env(safe-area-inset-top)); z-index: 5;
 }
 .tab {
   min-height: 52px; border: 2px solid transparent; background: transparent;
-  color: var(--muted); font-size: 20px; font-weight: 900; letter-spacing: .12em;
+  color: var(--muted); font-size: 18px; font-weight: 900; letter-spacing: .08em;
 }
 .tab[aria-selected="true"] { background: var(--red-deep); border-color: var(--gold); color: #fff; }
 .view { display: grid; gap: 10px; }
@@ -253,6 +253,33 @@ button:focus-visible { outline: 3px solid var(--gold-soft); outline-offset: 2px;
 .qty { text-align: center; font-size: 52px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .field-label { font-size: 14px; color: var(--muted); font-weight: 800; }
 .warn-note { margin: 0; font-size: 14px; font-weight: 800; color: var(--warn); }
+
+.note { font-size: 14px; color: var(--muted); margin: 0; }
+
+/* ---- 商品の登録 ---- */
+.cat-version { font-size: 13px; color: var(--muted); }
+.cat-list { display: grid; gap: 10px; }
+.cat-item { border: 2px solid var(--line-strong); background: #1a0f0c; padding: 10px; display: grid; gap: 8px; }
+.cat-item.off { opacity: .6; border-style: dashed; }
+.cat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cat-field { display: grid; gap: 2px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.cat-field input[type="text"], .cat-field input[type="number"] {
+  width: 100%; min-height: 48px; padding: 6px 10px; font-size: 18px; font-weight: 800; font-family: inherit;
+  background: #0d0806; color: var(--text); border: 1px solid var(--line-strong); border-radius: 0;
+}
+.cat-field input::placeholder { color: #8d7d63; font-weight: 700; }
+.cat-check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 16px; font-weight: 800; }
+.cat-check input { width: 24px; height: 24px; accent-color: var(--red-deep); flex: none; }
+.cat-checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.cat-actions { display: flex; gap: 6px; }
+.cat-actions button { min-height: 44px; flex: 1; font-size: 15px; }
+.cat-options { display: grid; gap: 4px; }
+.save-bar {
+  position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 4; display: grid; gap: 6px;
+  padding: 10px; background: #120a08; border: 1px solid var(--gold);
+}
+.cat-status { margin: 0; text-align: center; font-size: 15px; font-weight: 800; color: var(--muted); min-height: 1.4em; }
+.cat-status.dirty { color: var(--warn); } .cat-status.ok { color: var(--green); } .cat-status.error { color: #ff8a95; }
 
 /* ---- フラッシュ通知 ---- */
 .flash {

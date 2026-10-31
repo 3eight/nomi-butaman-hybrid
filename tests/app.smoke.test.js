@@ -203,3 +203,56 @@ test('タブ: 会計タブで切り替わり、選択は保存・URLに反映さ
   assert.equal(location.hash, '#register');
   assert.equal(boot(storage, LOCAL).ids['view-register'].hidden, false);
 });
+
+test('商品の登録: 追加・価格設定・保存で会計ボタンとせいろの選択肢に反映、販売停止で非表示', async () => {
+  const storage = memoryStorage();
+  const { ids } = boot(storage, { ...LOCAL, hash: '#products' });
+  assert.equal(ids['view-products'].hidden, false);
+  const cards = () => all(ids['cat-list'], c => (c.className || '').startsWith('cat-item'));
+  assert.equal(cards().length, 3);
+  ids['cat-add'].click();
+  assert.equal(cards().length, 4);
+  assert.match(ids['cat-status'].textContent, /未保存/);
+  const card = cards()[3];
+  const inputs = all(card, c => c.tagName === 'input');
+  const fire = (i, v) => { i.value = v; i.listeners.input.forEach(fn => fn()); };
+  fire(inputs.find(i => i.type === 'text'), '肉まん');
+  fire(inputs.find(i => i.type === 'number'), '400');
+  // 豚まんの蒸し価格も設定
+  const butaPrice = all(cards()[0], c => c.tagName === 'input' && c.type === 'number')[0];
+  fire(butaPrice, '500');
+  ids['cat-save'].click();
+  for (let i = 0; i < 5; i++) await tick();
+  assert.match(ids['cat-status'].textContent, /保存しました（版 1）/);
+  const saved = JSON.parse(storage.getItem('nomi.catalog.v1'));
+  assert.equal(saved.products[3].name, '肉まん');
+  assert.deepEqual(saved.products[3].prices, { steam: 400 });
+
+  // 会計: 肉まんボタンと金額
+  ids['tab-register'].click();
+  const item = name => all(ids.menu, c => (c.className || '').startsWith('menu-item') && c.textContent.startsWith(name))[0];
+  assert.ok(item('肉まん蒸し'));
+  item('肉まん蒸し').click();
+  item('豚まん蒸し').click();
+  assert.match(ids['order-summary'].textContent, /¥900/);
+  // せいろ: 肉まんが選択肢に出る
+  all(ids.tiers, c => c.attrs && c.attrs['data-tier'] === '4')[0].click();
+  assert.ok(byText(ids['sheet-body'], '肉まん'));
+
+  // 販売停止 → 会計から消える
+  ids['tab-products'].click();
+  const enabledBox = all(cards()[3], c => c.tagName === 'input' && c.type === 'checkbox').pop();
+  enabledBox.checked = false;
+  enabledBox.listeners.change.forEach(fn => fn());
+  ids['cat-save'].click();
+  for (let i = 0; i < 5; i++) await tick();
+  ids['tab-register'].click();
+  assert.equal(item('肉まん蒸し'), undefined);
+});
+
+test('商品の登録: 商品名が空なら保存しない', () => {
+  const { ids } = boot(memoryStorage(), { ...LOCAL, hash: '#products' });
+  ids['cat-add'].click();
+  ids['cat-save'].click();
+  assert.match(ids['cat-status'].textContent, /商品名を入力してください（4件目）/);
+});

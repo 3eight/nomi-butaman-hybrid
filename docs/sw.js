@@ -2,7 +2,7 @@
  * 画面ファイルを端末にキャッシュし、電波が弱い/圏外でも起動できるようにする。
  * GAS への通信（別オリジン）は扱わない。
  */
-var CACHE = 'nomi-hud-v5';
+var CACHE = 'nomi-hud-v6';
 var ASSETS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'sync.js', 'app.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', function (event) {

@@ -120,3 +120,29 @@ test('steamAdvice: 需要 − (販売可能＋確認待ち＋蒸し中 − 予�
   assert.equal(Core.steamAdvice(state, { status: 'ready', total: 5 }).need, 0);
   assert.equal(Core.steamAdvice(state, { status: 'learning', samples: 1, needed: 2 }).status, 'learning');
 });
+
+test('normalizeCatalog: 必須項目・重複・価格を検証し、会計ボタンと在庫設定を作る', () => {
+  const ok = Core.normalizeCatalog({
+    products: [
+      { id: 'nikuman', name: ' 肉まん ', man: true, methods: ['steam', 'steam', 'bake'], prices: { steam: '400' } },
+      { id: 'drink', name: 'お茶', man: false, methods: [], prices: { '': 150 }, enabled: true },
+      { id: 'old', name: '旧商品', man: true, methods: ['fry'], enabled: false }
+    ],
+    options: { serviceOn: true, serviceEvery: 0 }
+  });
+  assert.equal(ok.ok, true);
+  const c = ok.catalog;
+  assert.deepEqual(c.products[0], { id: 'nikuman', name: '肉まん', short: '肉まん', man: true, methods: ['steam'], prices: { steam: 400 }, enabled: true });
+  assert.equal(c.options.serviceEvery, 5);
+  assert.deepEqual(Core.menuFromCatalog(c).map(m => [m.key, m.name, m.price]), [['nikuman_steam', '肉まん', 400], ['drink', 'お茶', 150]]);
+  const opt = Core.catalogOptions(c);
+  assert.deepEqual(opt.manProducts, ['nikuman', 'old']);
+  assert.equal(Core.serviceEntitled([{ product: 'nikuman', qty: 5 }, { product: 'drink', qty: 5 }], opt), 1);
+
+  assert.equal(Core.normalizeCatalog({ products: [{ id: 'a', name: '' }] }).ok, false);
+  assert.equal(Core.normalizeCatalog({ products: [{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }] }).ok, false);
+  assert.equal(Core.normalizeCatalog({ products: [{ id: 'a b', name: 'A' }] }).ok, false);
+  assert.equal(Core.normalizeCatalog({ products: [{ id: 'a', name: 'A', methods: ['steam'], prices: { steam: -1 } }] }).ok, false);
+  assert.equal(Core.normalizeCatalog({ products: [{ id: 'a', name: 'A', methods: ['steam'], prices: { steam: 1.5 } }] }).ok, false);
+  assert.equal(Core.normalizeCatalog(null).ok, false);
+});

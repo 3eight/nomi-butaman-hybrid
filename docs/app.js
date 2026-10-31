@@ -3,24 +3,21 @@
   'use strict';
 
   var cfg = window.NOMI_CONFIG || {};
-  var products = (cfg.products && cfg.products.length) ? cfg.products : [
-    { id: 'butaman', name: '豚まん', short: '豚', man: true },
-    { id: 'anbata', name: 'あんバタまん', short: 'あんバタ', man: true },
-    { id: 'potato', name: 'ポテト', short: 'ポテト', man: false }
-  ];
-  var productMap = {};
-  products.forEach(function (p) { productMap[p.id] = p; });
-  var MENU = (cfg.menu && cfg.menu.length) ? cfg.menu : [
-    { key: 'butaman_steam', product: 'butaman', method: 'steam', enabled: true },
-    { key: 'butaman_fry', product: 'butaman', method: 'fry', enabled: true },
-    { key: 'anbata_steam', product: 'anbata', method: 'steam', enabled: true },
-    { key: 'anbata_fry', product: 'anbata', method: 'fry', enabled: true },
-    { key: 'potato', product: 'potato', method: '', enabled: false }
-  ];
   var METHOD_LABEL = { steam: '蒸し', fry: '揚げ', '': '' };
   var CIRC = 2 * Math.PI * 44;
 
   var sync = NomiSync.createSync({ storage: window.localStorage, fetch: window.fetch.bind(window), config: cfg });
+
+  // 商品マスター（「商品」タブで登録・全端末共有）
+  var catalog, productMap, MENU;
+  function refreshCatalog() {
+    catalog = sync.getCatalog();
+    productMap = {};
+    catalog.products.forEach(function (p) { productMap[p.id] = p; });
+    MENU = NomiCore.menuFromCatalog(catalog);
+  }
+  refreshCatalog();
+  function manProducts() { return catalog.products.filter(function (p) { return p.man && p.enabled; }); }
   var $ = function (id) { return document.getElementById(id); };
 
   function el(tag, text, cls) {
@@ -39,29 +36,17 @@
     var d = new Date(v);
     return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   }
-  function pname(id) { return productMap[id] ? productMap[id].name : id; }
+  function pname(id, fallback) { return productMap[id] ? productMap[id].name : (fallback || id); }
   function pshort(id) { return productMap[id] ? productMap[id].short : id; }
-  function lineLabel(l) { return pname(l.product) + (METHOD_LABEL[l.method || ''] ? ' ' + METHOD_LABEL[l.method] : ''); }
+  function lineLabel(l) { return pname(l.product, l.name) + (METHOD_LABEL[l.method || ''] ? ' ' + METHOD_LABEL[l.method] : ''); }
   function circled(n) { return n >= 1 && n <= 20 ? String.fromCharCode(0x2460 + n - 1) : String(n); }
 
-  /* ---------------- 端末設定 ---------------- */
-  var KEY_SETTINGS = 'nomi.settings.v1';
-  var settings = (function () {
-    var s = {};
-    try { s = JSON.parse(window.localStorage.getItem(KEY_SETTINGS) || '{}') || {}; } catch (e) { s = {}; }
-    if (!s.menu) { s.menu = {}; MENU.forEach(function (m) { s.menu[m.key] = m.enabled !== false; }); }
-    if (s.serviceOn === undefined) s.serviceOn = true;
-    if (s.friedFromSteamed === undefined) s.friedFromSteamed = true;
-    return s;
-  })();
-  function saveSettings() { try { window.localStorage.setItem(KEY_SETTINGS, JSON.stringify(settings)); } catch (e) { /* 無視 */ } }
-  function enabledMenu() { return MENU.filter(function (m) { return settings.menu[m.key]; }); }
-
   function kitchenOpts() {
-    return {
-      steamMinutes: cfg.steamMinutes || 40, serviceEvery: cfg.serviceEvery || 5, serviceOn: settings.serviceOn,
-      friedFromSteamed: settings.friedFromSteamed, lossYenPerPiece: cfg.lossYenPerPiece || 250, tiers: cfg.tiers || null
-    };
+    var o = NomiCore.catalogOptions(catalog);
+    o.steamMinutes = cfg.steamMinutes || 40;
+    o.lossYenPerPiece = cfg.lossYenPerPiece || 250;
+    o.tiers = cfg.tiers || null;
+    return o;
   }
   function currentState() { return NomiCore.buildState(sync.getOps(), new Date(), kitchenOpts()); }
 
@@ -308,7 +293,10 @@
     // 蒸し開始（空き段 or 追加投入）
     body.appendChild(el('div', t.batches.length ? '追加投入（時刻の違う分は別に管理）' : '蒸し開始', 'field-label'));
     var seg = el('div', null, 'segmented');
-    products.filter(function (p) { return p.man; }).forEach(function (p) {
+    var choices = manProducts();
+    if (choices.length && !productMap[sheet.product]) sheet.product = choices[0].id;
+    if (choices.length && !choices.some(function (p) { return p.id === sheet.product; })) sheet.product = choices[0].id;
+    choices.forEach(function (p) {
       var b = button(p.name, null, function () { sheet.product = p.id; renderSheet(currentState()); });
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', String(sheet.product === p.id));
@@ -358,22 +346,23 @@
   }
 
   /* ================= 会計 ================= */
-  var draft = { qty: {}, service: 'butaman_steam' };
+  function defaultService() { var m = MENU.filter(function (x) { return x.man; })[0]; return m ? m.key : 'decline'; }
+  var draft = { qty: {}, service: null };
 
   function draftLines() {
-    return enabledMenu().filter(function (m) { return draft.qty[m.key] > 0; })
-      .map(function (m) { return { product: m.product, method: m.method, qty: draft.qty[m.key] }; });
+    return MENU.filter(function (m) { return draft.qty[m.key] > 0; })
+      .map(function (m) { return { product: m.product, method: m.method, name: m.name, qty: draft.qty[m.key] }; });
   }
 
   function renderRegister(state) {
     $('order-no').textContent = '#' + state.nextOrderNumber;
     var menu = $('menu');
     menu.textContent = '';
-    enabledMenu().forEach(function (m) {
+    MENU.forEach(function (m) {
       var q = draft.qty[m.key] || 0;
       var b = button(null, 'menu-item' + (q ? ' has' : ''), function () { draft.qty[m.key] = q + 1; renderAll(); });
       var label = el('div', null, 'menu-label');
-      label.appendChild(el('span', pname(m.product), 'menu-name'));
+      label.appendChild(el('span', m.name, 'menu-name'));
       if (m.method) label.appendChild(el('span', METHOD_LABEL[m.method], 'menu-method ' + m.method));
       b.appendChild(label);
       b.appendChild(el('span', String(q), 'menu-qty'));
@@ -395,7 +384,8 @@
     $('service-count').textContent = String(entitled);
     var so = $('service-options');
     so.textContent = '';
-    MENU.filter(function (m) { return productMap[m.product] && productMap[m.product].man; }).concat([{ key: 'decline' }]).forEach(function (m) {
+    if (!draft.service || (draft.service !== 'decline' && !MENU.some(function (m) { return m.key === draft.service; }))) draft.service = defaultService();
+    MENU.filter(function (m) { return m.man; }).concat([{ key: 'decline' }]).forEach(function (m) {
       var b = button(m.key === 'decline' ? '辞退' : lineLabel(m), null, function () { draft.service = m.key; renderAll(); });
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', String(draft.service === m.key));
@@ -407,7 +397,9 @@
     var svc = draft.service === 'decline' ? 0 : entitled;
     var sum = $('order-summary');
     sum.textContent = '';
-    if (!lines.length) {
+    if (!MENU.length) {
+      sum.textContent = '販売中の商品がありません。「商品」タブで登録してください';
+    } else if (!lines.length) {
       sum.textContent = '商品をタップしてください';
     } else {
       sum.appendChild(document.createTextNode('お渡し合計 '));
@@ -424,12 +416,12 @@
   }
 
   function priceTotal(lines) {
-    var prices = cfg.prices || {};
     var sum = 0;
     for (var i = 0; i < lines.length; i++) {
       var key = lines[i].product + (lines[i].method ? '_' + lines[i].method : '');
-      if (typeof prices[key] !== 'number') return null;
-      sum += prices[key] * lines[i].qty;
+      var m = MENU.filter(function (x) { return x.key === key; })[0];
+      if (!m || m.price == null) return null;
+      sum += m.price * lines[i].qty;
     }
     return sum;
   }
@@ -442,14 +434,14 @@
     var service = [];
     var declined = draft.service === 'decline';
     if (entitled && !declined) {
-      var m = MENU.filter(function (x) { return x.key === draft.service; })[0] || MENU[0];
-      service.push({ product: m.product, method: m.method, qty: entitled });
+      var m = MENU.filter(function (x) { return x.key === draft.service; })[0] || MENU.filter(function (x) { return x.man; })[0];
+      if (m) service.push({ product: m.product, method: m.method, name: m.name, qty: entitled });
     }
     addOp('order_create', {
       orderId: NomiSync.makeId(), number: state.nextOrderNumber, lines: lines, service: service,
       serviceDeclined: declined && entitled > 0, paid: !!paid
     });
-    draft = { qty: {}, service: draft.service === 'decline' ? 'butaman_steam' : draft.service };
+    draft = { qty: {}, service: draft.service === 'decline' ? null : draft.service };
     renderAll();
     flash('#' + state.nextOrderNumber + ' を受付しました' + (paid ? '（支払済）' : '（後払い）'));
   }
@@ -548,28 +540,149 @@
     });
   }
 
-  function renderSettings() {
-    var box = $('settings');
-    box.textContent = '';
-    box.appendChild(el('p', 'メニュー（この出店で扱う商品）', 'field-label'));
-    MENU.forEach(function (m) {
-      box.appendChild(checkbox(lineLabel(m), settings.menu[m.key], function (v) { settings.menu[m.key] = v; }));
-    });
-    box.appendChild(checkbox('サービス（有料まん類' + (cfg.serviceEvery || 5) + '個ごとに1個）', settings.serviceOn, function (v) { settings.serviceOn = v; }));
-    box.appendChild(checkbox('揚げ品も蒸し上がり在庫から使う', settings.friedFromSteamed, function (v) { settings.friedFromSteamed = v; }));
-    box.appendChild(el('p', '※揚げの工程は未確認のため仮設定です。各端末で同じ設定にしてください。', 'note'));
+  /* ================= 商品の登録 ================= */
+  var catDraft = sync.getCatalog();
+  var catDirty = false;
+  var METHOD_NAMES = [['steam', '蒸し'], ['fry', '揚げ']];
+
+  function setCatStatus(text, cls) {
+    var st = $('cat-status');
+    st.textContent = text;
+    st.className = 'cat-status' + (cls ? ' ' + cls : '');
   }
-  function checkbox(label, checked, onChange) {
-    var l = el('label');
+  function markDirty() {
+    catDirty = true;
+    setCatStatus('未保存の変更があります', 'dirty');
+  }
+
+  function catInput(label, value, attrs, onInput) {
+    var f = el('label', null, 'cat-field');
+    f.appendChild(el('span', label));
+    var i = el('input');
+    i.type = attrs.type || 'text';
+    Object.keys(attrs).forEach(function (k) { if (k !== 'type') i.setAttribute(k, attrs[k]); });
+    i.value = value == null ? '' : String(value);
+    i.addEventListener('input', function () { onInput(i.value); markDirty(); });
+    f.appendChild(i);
+    return f;
+  }
+  function catCheck(label, checked, onChange) {
+    var l = el('label', null, 'cat-check');
     var c = el('input');
     c.type = 'checkbox';
     c.checked = !!checked;
-    c.addEventListener('change', function () { onChange(c.checked); saveSettings(); renderAll(); });
+    c.addEventListener('change', function () { onChange(c.checked); markDirty(); });
     l.appendChild(c);
     l.appendChild(document.createTextNode(label));
     return l;
   }
 
+  function renderProducts() {
+    var list = $('cat-list');
+    list.textContent = '';
+    $('cat-version').textContent = catalog.version ? '版 ' + catalog.version + (catalog.updatedAt ? '（' + hhmm(catalog.updatedAt) + ' 更新）' : '') : '未登録（初期値）';
+    catDraft.products.forEach(function (p, idx) {
+      var card = el('div', null, 'cat-item' + (p.enabled ? '' : ' off'));
+      var row = el('div', null, 'cat-row');
+      row.appendChild(catInput('商品名', p.name, { maxlength: '20', placeholder: '例：豚まん' }, function (v) { p.name = v; }));
+      row.appendChild(catInput('略称（せいろ表示）', p.short, { maxlength: '8', placeholder: '例：豚' }, function (v) { p.short = v; }));
+      card.appendChild(row);
+
+      var checks = el('div', null, 'cat-checks');
+      METHOD_NAMES.forEach(function (mn) {
+        checks.appendChild(catCheck(mn[1], p.methods.indexOf(mn[0]) >= 0, function (on) {
+          p.methods = METHOD_NAMES.map(function (x) { return x[0]; }).filter(function (k) {
+            return k === mn[0] ? on : p.methods.indexOf(k) >= 0;
+          });
+          renderProducts();
+          markDirty();
+        }));
+      });
+      checks.appendChild(catCheck('まん類（サービス対象・せいろで蒸す）', p.man, function (on) { p.man = on; }));
+      checks.appendChild(catCheck('販売中', p.enabled, function (on) { p.enabled = on; card.className = 'cat-item' + (on ? '' : ' off'); }));
+      card.appendChild(checks);
+
+      var prices = el('div', null, 'cat-row');
+      var keys = p.methods.length ? p.methods : [''];
+      keys.forEach(function (m) {
+        var label = (m ? METHOD_LABEL[m] + 'の' : '') + '価格（円）';
+        prices.appendChild(catInput(label, p.prices[m], { type: 'number', inputmode: 'numeric', min: '0', step: '1', placeholder: '未設定' }, function (v) {
+          if (v === '') delete p.prices[m]; else p.prices[m] = Number(v);
+        }));
+      });
+      card.appendChild(prices);
+
+      var acts = el('div', null, 'cat-actions');
+      acts.appendChild(button('↑ 上へ', 'secondary', function () {
+        if (idx === 0) return;
+        catDraft.products.splice(idx - 1, 0, catDraft.products.splice(idx, 1)[0]);
+        markDirty(); renderProducts();
+      }));
+      acts.appendChild(button('↓ 下へ', 'secondary', function () {
+        if (idx === catDraft.products.length - 1) return;
+        catDraft.products.splice(idx + 1, 0, catDraft.products.splice(idx, 1)[0]);
+        markDirty(); renderProducts();
+      }));
+      acts.appendChild(button('削除', 'secondary danger', function () {
+        if (!window.confirm('「' + (p.name || '名称未入力') + '」を削除しますか？\n（売るのを止めるだけなら「販売中」を外してください。過去の記録は残ります）')) return;
+        catDraft.products.splice(idx, 1);
+        markDirty(); renderProducts();
+      }));
+      card.appendChild(acts);
+      list.appendChild(card);
+    });
+
+    var opt = $('cat-options');
+    opt.textContent = '';
+    var o = catDraft.options;
+    opt.appendChild(catCheck('サービスを実施する', o.serviceOn, function (on) { o.serviceOn = on; }));
+    opt.appendChild(catInput('有料まん類 何個ごとにサービス1個', o.serviceEvery, { type: 'number', inputmode: 'numeric', min: '1', step: '1' }, function (v) { o.serviceEvery = Number(v); }));
+    opt.appendChild(catCheck('揚げ品も蒸し上がり在庫から使う（揚げ工程は未確認の仮設定）', o.friedFromSteamed, function (on) { o.friedFromSteamed = on; }));
+    if (!catDirty) setCatStatus(cfg.gasUrl ? '' : 'GAS未設定のため、この端末にだけ保存されます');
+  }
+
+  function saveProducts() {
+    var n = NomiCore.normalizeCatalog(catDraft);
+    if (!n.ok) { setCatStatus(n.error, 'error'); return; }
+    var btn = $('cat-save');
+    btn.disabled = true;
+    setCatStatus('保存中…');
+    sync.saveCatalog(catDraft).then(function (res) {
+      btn.disabled = false;
+      if (res.ok) {
+        catDirty = false;
+        refreshCatalog();
+        catDraft = sync.getCatalog();
+        renderProducts();
+        renderAll();
+        setCatStatus('保存しました（版 ' + catalog.version + '）。他のスマホには1分以内に反映されます', 'ok');
+        flash('商品を保存しました');
+      } else if (res.code === 'conflict') {
+        refreshCatalog();
+        catDraft = sync.getCatalog();
+        catDirty = false;
+        renderProducts();
+        renderAll();
+        setCatStatus(res.error + '。もう一度変更して保存してください', 'error');
+      } else {
+        setCatStatus(res.error, 'error');
+      }
+    });
+  }
+
+  $('cat-add').addEventListener('click', function () {
+    catDraft.products.push({ id: 'p' + NomiSync.makeId().replace(/[^a-z0-9]/gi, '').slice(0, 10), name: '', short: '', man: true, methods: ['steam'], prices: {}, enabled: true });
+    markDirty();
+    renderProducts();
+  });
+  $('cat-save').addEventListener('click', saveProducts);
+  $('cat-reset').addEventListener('click', function () {
+    if (catDirty && !window.confirm('保存していない変更を取り消しますか？')) return;
+    catDirty = false;
+    catDraft = sync.getCatalog();
+    renderProducts();
+    setCatStatus('変更を取り消しました');
+  });
   /* ================= 共通 ================= */
   var link = 'checking';
 
@@ -604,6 +717,7 @@
 
   // ---- 同期 ----
   var lastDeliveryPull = 0;
+  var lastCatalogPull = 0;
   var syncing = null;
   function syncNow() {
     renderStatus();
@@ -612,6 +726,17 @@
     syncing = sync.flushOps()
       .then(function () { return sync.flush(); })
       .then(function () { return sync.pullOps(); })
+      .then(function () {
+        if (Date.now() - lastCatalogPull > 60000) {
+          lastCatalogPull = Date.now();
+          return sync.pullCatalog().then(function (r) {
+            if (r && r.updated) {
+              refreshCatalog();
+              if (!catDirty) { catDraft = sync.getCatalog(); renderProducts(); }
+            }
+          });
+        }
+      })
       .then(function () {
         if (Date.now() - lastDeliveryPull > 120000) { lastDeliveryPull = Date.now(); return sync.pull(); }
       })
@@ -626,7 +751,7 @@
   }
 
   // ---- 画面切替 ----
-  var VIEWS = ['kitchen', 'register'];
+  var VIEWS = ['kitchen', 'register', 'products'];
   var KEY_VIEW = 'nomi.view.v1';
   function viewFromHash() {
     var h = String(location.hash || '').replace('#', '');
@@ -644,6 +769,7 @@
       try { window.localStorage.setItem(KEY_VIEW, name); } catch (e) { /* 保存不可でも切替は有効 */ }
       if (window.history && history.replaceState) history.replaceState(null, '', '#' + name);
     }
+    if (name === 'products' && !catDirty) { catDraft = sync.getCatalog(); renderProducts(); }
     if (window.scrollTo) window.scrollTo(0, 0);
   }
 
@@ -654,7 +780,7 @@
 
   $('order-paid').addEventListener('click', function () { createOrder(true); });
   $('order-later').addEventListener('click', function () { createOrder(false); });
-  $('order-clear').addEventListener('click', function () { draft = { qty: {}, service: 'butaman_steam' }; renderAll(); });
+  $('order-clear').addEventListener('click', function () { draft = { qty: {}, service: null }; renderAll(); });
   $('sync-now').addEventListener('click', syncNow);
   $('sheet-close').addEventListener('click', closeSheet);
   $('sheet').addEventListener('click', function (ev) { if (ev.target === $('sheet')) closeSheet(); });
@@ -662,7 +788,7 @@
   window.addEventListener('offline', renderStatus);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) syncNow(); });
 
-  renderSettings();
+  renderProducts();
   renderAll();
   syncNow();
   setInterval(function () { renderAll(); }, 5000);                                   // 残り時間の更新

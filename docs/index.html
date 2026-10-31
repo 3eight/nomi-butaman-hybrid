@@ -29,6 +29,7 @@
     <nav class="tabs" role="tablist" aria-label="画面切替">
       <button type="button" class="tab" role="tab" id="tab-kitchen" aria-controls="view-kitchen" data-view="kitchen">キッチン</button>
       <button type="button" class="tab" role="tab" id="tab-register" aria-controls="view-register" data-view="register">会計</button>
+      <button type="button" class="tab" role="tab" id="tab-products" aria-controls="view-products" data-view="products">商品</button>
     </nav>
 
     <!-- ============ キッチン（タイマー係） ============ -->
@@ -92,10 +93,28 @@
         <button type="button" class="secondary" id="sync-now">今すぐ同期</button>
       </section>
 
-      <details class="panel settings">
-        <summary class="panel-title">設定（この端末）</summary>
-        <div id="settings"></div>
-      </details>
+    </div>
+
+    <!-- ============ 商品の登録（全端末で共有） ============ -->
+    <div class="view" id="view-products" role="tabpanel" aria-labelledby="tab-products" hidden>
+      <section class="panel" aria-labelledby="cat-title">
+        <div class="panel-head">
+          <h2 id="cat-title" class="panel-title">商品の登録</h2>
+          <span class="cat-version" id="cat-version"></span>
+        </div>
+        <p class="note">ここで登録した商品が会計ボタンとせいろの選択肢になります。保存すると全員のスマホに反映されます。</p>
+        <div id="cat-list" class="cat-list"></div>
+        <button type="button" class="secondary" id="cat-add">＋ 商品を追加</button>
+      </section>
+      <section class="panel" aria-labelledby="cat-opt-title">
+        <h2 id="cat-opt-title" class="panel-title">サービス・在庫の設定</h2>
+        <div id="cat-options" class="cat-options"></div>
+      </section>
+      <div class="save-bar">
+        <p class="cat-status" id="cat-status" role="status" aria-live="polite"></p>
+        <button type="button" class="primary" id="cat-save">保存して全員に反映</button>
+        <button type="button" class="secondary" id="cat-reset">変更を取り消す</button>
+      </div>
     </div>
 
     <footer class="foot" id="foot"></footer>

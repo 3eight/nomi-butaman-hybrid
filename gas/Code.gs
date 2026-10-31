@@ -16,6 +16,9 @@ var SHEET_RECORDS = '受渡記録';
 var SHEET_KNOWLEDGE = '販売ナレッジ';
 var SHEET_OPS = '操作ログ';
 var OPS_HEADERS = ['操作ID', '出店日', '種類', '内容', '端末ID', '発生時刻', '受信時刻'];
+var SHEET_CATALOG = '商品マスター';
+var CATALOG_HEADERS = ['並び', '商品ID', '商品名', '略称', 'まん類', '調理方法', '価格', '販売中', '更新日時'];
+var PROP_CATALOG = 'CATALOG_JSON';
 var RECORD_HEADERS = ['記録ID', '受渡日時', '日付', '曜日', '時刻', '時間帯', '商品ID', '商品名', '数量', '方法', '端末ID', '受信日時'];
 var KNOWLEDGE_HEADERS = ['曜日', '時間帯', '商品ID', '商品名', '実績回数', '合計数量', '1回平均', '状態', '更新日時'];
 var LOCK_TIMEOUT_MS = 10000;
@@ -30,7 +33,9 @@ var COMMANDS = {
   getForecast: cmdGetForecast,
   rebuildKnowledge: cmdRebuildKnowledge,
   appendOps: cmdAppendOps,
-  listOps: cmdListOps
+  listOps: cmdListOps,
+  getCatalog: cmdGetCatalog,
+  saveCatalog: cmdSaveCatalog
 };
 
 function doGet(e) {
@@ -227,6 +232,53 @@ function cmdListOps(payload) {
     }
   }
   return { ok: true, date: date, ops: ops, serverTime: new Date().toISOString() };
+}
+
+/** 商品マスターを返す（未登録なら null。端末側は既定値を使う） */
+function cmdGetCatalog() {
+  var raw = PropertiesService.getScriptProperties().getProperty(PROP_CATALOG);
+  return { ok: true, catalog: raw ? JSON.parse(raw) : null };
+}
+
+/** 商品マスターを保存（版番号で同時編集の上書きを防止） */
+function cmdSaveCatalog(payload) {
+  var n = NomiCore.normalizeCatalog(payload.catalog);
+  if (!n.ok) return fail_('invalid', n.error);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(LOCK_TIMEOUT_MS)) return fail_('busy', '混み合っています。もう一度保存してください', true);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var raw = props.getProperty(PROP_CATALOG);
+    var current = raw ? JSON.parse(raw) : null;
+    var currentVersion = current ? current.version : 0;
+    if (Number(payload.baseVersion || 0) !== currentVersion) {
+      return { ok: false, code: 'conflict', error: '他の端末で商品が更新されています。最新を読み込みました', catalog: current, retryable: false };
+    }
+    var catalog = n.catalog;
+    catalog.version = currentVersion + 1;
+    catalog.updatedAt = new Date().toISOString();
+    props.setProperty(PROP_CATALOG, JSON.stringify(catalog));
+    writeCatalogSheet_(catalog);
+    return { ok: true, catalog: catalog };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** 人が見る用の一覧をシートに書き出す（正本はスクリプトプロパティ） */
+function writeCatalogSheet_(catalog) {
+  var sheet = getSheet_(SHEET_CATALOG, CATALOG_HEADERS);
+  var last = sheet.getLastRow();
+  if (last > 1) sheet.getRange(2, 1, last - 1, CATALOG_HEADERS.length).clearContent();
+  var label = { steam: '蒸し', fry: '揚げ', '': '—' };
+  var rows = catalog.products.map(function (p, i) {
+    var keys = p.methods.length ? p.methods : [''];
+    return [i + 1, p.id, p.name, p.short, p.man ? 'はい' : 'いいえ',
+      keys.map(function (m) { return label[m]; }).join('・'),
+      keys.map(function (m) { return label[m] + ':' + (typeof p.prices[m] === 'number' ? p.prices[m] + '円' : '未設定'); }).join(' / '),
+      p.enabled ? '販売中' : '停止', catalog.updatedAt].map(NomiCore.safeCell);
+  });
+  if (rows.length) sheet.getRange(2, 1, rows.length, CATALOG_HEADERS.length).setValues(rows);
 }
 
 /** 時間主導トリガー用（例: 毎晩1回） */

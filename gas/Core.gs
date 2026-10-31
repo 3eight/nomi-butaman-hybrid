@@ -307,6 +307,7 @@ var NomiCore = (function () {
     serviceOn: true,
     friedFromSteamed: true,    // 揚げ品も蒸し上がり在庫から使う（未確認・設定で変更可）
     lossYenPerPiece: 250,      // 出店者負担ロス単価（確定）
+    manProducts: null,         // まん類の商品ID（null なら豚まん・あんバタまん）
     tiers: null                // 未指定なら defaultTiers()
   };
 
@@ -345,14 +346,107 @@ var NomiCore = (function () {
     };
   }
 
-  function isMan(product) { return product === 'butaman' || product === 'anbata'; }
+  function isMan(product, opt) {
+    var list = opt && opt.manProducts;
+    return list ? list.indexOf(product) >= 0 : (product === 'butaman' || product === 'anbata');
+  }
+
+  /* ---------------- 商品マスター（全端末で共有） ---------------- */
+  var METHODS = ['steam', 'fry'];
+
+  function defaultCatalog() {
+    return {
+      version: 0,
+      products: [
+        { id: 'butaman', name: '豚まん', short: '豚', man: true, methods: ['steam', 'fry'], prices: {}, enabled: true },
+        { id: 'anbata', name: 'あんバタまん', short: 'あんバタ', man: true, methods: ['steam', 'fry'], prices: {}, enabled: true },
+        { id: 'potato', name: 'ポテト', short: 'ポテト', man: false, methods: [], prices: {}, enabled: false }
+      ],
+      options: { serviceOn: true, serviceEvery: 5, friedFromSteamed: true }
+    };
+  }
+
+  function priceOrNull(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var n = Number(v);
+    return isFinite(n) && Math.floor(n) === n && n >= 0 && n <= 100000 ? n : undefined;
+  }
+
+  /** 商品マスターの検証・正規化 */
+  function normalizeCatalog(input) {
+    if (!input || typeof input !== 'object' || !Array.isArray(input.products)) return { ok: false, error: '商品データが不正です' };
+    if (input.products.length > 30) return { ok: false, error: '商品は30件までです' };
+    var seen = {};
+    var products = [];
+    for (var i = 0; i < input.products.length; i++) {
+      var p = input.products[i] || {};
+      var id = sanitizeText(p.id, 32);
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) return { ok: false, error: '商品IDが不正です（' + (i + 1) + '件目）' };
+      if (seen[id]) return { ok: false, error: '商品IDが重複しています: ' + id };
+      seen[id] = true;
+      var name = sanitizeText(p.name, 20);
+      if (!name) return { ok: false, error: '商品名を入力してください（' + (i + 1) + '件目）' };
+      var methods = (Array.isArray(p.methods) ? p.methods : []).filter(function (m, k, arr) { return METHODS.indexOf(m) >= 0 && arr.indexOf(m) === k; });
+      var prices = {};
+      var keys = methods.length ? methods : [''];
+      for (var k = 0; k < keys.length; k++) {
+        var pv = priceOrNull(p.prices ? p.prices[keys[k]] : null);
+        if (pv === undefined) return { ok: false, error: name + ' の価格が不正です（0以上の整数）' };
+        if (pv !== null) prices[keys[k]] = pv;
+      }
+      products.push({
+        id: id, name: name, short: sanitizeText(p.short, 8) || name.slice(0, 4),
+        man: !!p.man, methods: methods, prices: prices, enabled: p.enabled !== false
+      });
+    }
+    var o = input.options || {};
+    var every = Math.floor(Number(o.serviceEvery));
+    return {
+      ok: true,
+      catalog: {
+        version: Math.max(0, Math.floor(Number(input.version) || 0)),
+        updatedAt: input.updatedAt || null,
+        products: products,
+        options: {
+          serviceOn: o.serviceOn !== false,
+          serviceEvery: every >= 1 && every <= 100 ? every : 5,
+          friedFromSteamed: o.friedFromSteamed !== false
+        }
+      }
+    };
+  }
+
+  /** 会計ボタン一覧（販売中の商品×調理方法） */
+  function menuFromCatalog(catalog) {
+    var out = [];
+    (catalog.products || []).forEach(function (p) {
+      if (!p.enabled) return;
+      var methods = p.methods && p.methods.length ? p.methods : [''];
+      methods.forEach(function (m) {
+        var price = p.prices ? p.prices[m] : undefined;
+        out.push({ key: p.id + (m ? '_' + m : ''), product: p.id, method: m, name: p.name, man: !!p.man, price: typeof price === 'number' ? price : null });
+      });
+    });
+    return out;
+  }
+
+  /** 商品マスターから在庫計算用オプションを作る */
+  function catalogOptions(catalog) {
+    var o = catalog.options || {};
+    return {
+      manProducts: (catalog.products || []).filter(function (p) { return p.man; }).map(function (p) { return p.id; }),
+      serviceOn: o.serviceOn !== false,
+      serviceEvery: o.serviceEvery || 5,
+      friedFromSteamed: o.friedFromSteamed !== false
+    };
+  }
 
   /** 有料まん類の個数からサービス付与数を計算（無料品・ポテトは数えない） */
   function serviceEntitled(lines, options) {
     var opt = merge(KITCHEN_DEFAULTS, options);
     if (!opt.serviceOn) return 0;
     var paid = 0;
-    (lines || []).forEach(function (l) { if (isMan(l.product)) paid += Number(l.qty) || 0; });
+    (lines || []).forEach(function (l) { if (isMan(l.product, opt)) paid += Number(l.qty) || 0; });
     return Math.floor(paid / opt.serviceEvery);
   }
 
@@ -361,7 +455,7 @@ var NomiCore = (function () {
     var opt = merge(KITCHEN_DEFAULTS, options);
     var needs = {};
     (order.lines || []).concat(order.service || []).forEach(function (l) {
-      if (!isMan(l.product)) return;
+      if (!isMan(l.product, opt)) return;
       if (l.method === 'fry' && !opt.friedFromSteamed) return;
       needs[l.product] = (needs[l.product] || 0) + (Number(l.qty) || 0);
     });
@@ -424,7 +518,7 @@ var NomiCore = (function () {
           if (!qty) return;
           var started = toDate(p.startedAt || op.at).getTime();
           b = batches[p.batchId] = {
-            batchId: p.batchId, tier: p.tier, product: p.product === 'anbata' ? 'anbata' : 'butaman',
+            batchId: p.batchId, tier: p.tier, product: /^[A-Za-z0-9_-]{1,32}$/.test(String(p.product || '')) ? String(p.product) : 'butaman',
             qty: qty, remaining: qty, startedAt: new Date(started).toISOString(), endAt: started + steamMs,
             confirmedAt: null, cancelled: false
           };
@@ -613,6 +707,10 @@ var NomiCore = (function () {
     buildState: buildState,
     summarizeLines: summarizeLines,
     steamAdvice: steamAdvice,
+    defaultCatalog: defaultCatalog,
+    normalizeCatalog: normalizeCatalog,
+    menuFromCatalog: menuFromCatalog,
+    catalogOptions: catalogOptions,
     safeCell: safeCell
   };
 })();

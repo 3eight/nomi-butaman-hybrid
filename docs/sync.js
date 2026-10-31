@@ -17,6 +17,7 @@ var NomiSync = (function () {
   var KEY_OPS = 'nomi.ops.v1';
   var KEY_OPQ = 'nomi.opq.v1';
   var KEEP_OP_DAYS = 3;
+  var KEY_CATALOG = 'nomi.catalog.v1';
   var KEEP_DAYS = 90;
   var BATCH = 50;
 
@@ -54,6 +55,8 @@ var NomiSync = (function () {
     var ops = load(KEY_OPS, []);
     var opQueue = load(KEY_OPQ, []);
     var flushingOps = null;
+    var catalog = load(KEY_CATALOG, null);
+    if (!catalog || !Core.normalizeCatalog(catalog).ok) catalog = opts.defaultCatalog || Core.defaultCatalog();
     var deviceId = storage.getItem(KEY_DEVICE);
     if (!deviceId) { deviceId = 'dev-' + makeId(); storage.setItem(KEY_DEVICE, deviceId); }
 
@@ -257,6 +260,44 @@ var NomiSync = (function () {
       });
     }
 
+    /* ---- 商品マスター ---- */
+    function setCatalog(c) {
+      var n = Core.normalizeCatalog(c);
+      if (!n.ok) return false;
+      catalog = n.catalog;
+      save(KEY_CATALOG, catalog);
+      return true;
+    }
+
+    /** サーバーの商品マスターを取り込む（より新しい版のときだけ） */
+    function pullCatalog() {
+      if (!cfg.gasUrl) return Promise.resolve({ skipped: true });
+      return call('getCatalog', {}).then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || '取得失敗');
+        if (res.catalog && res.catalog.version > (catalog.version || 0)) { setCatalog(res.catalog); return { updated: true }; }
+        return { updated: false };
+      });
+    }
+
+    /** 商品マスターを保存（オンライン必須。版が古ければ conflict） */
+    function saveCatalog(next) {
+      var n = Core.normalizeCatalog(next);
+      if (!n.ok) return Promise.resolve({ ok: false, error: n.error });
+      if (!cfg.gasUrl) {
+        n.catalog.version = (catalog.version || 0) + 1;
+        n.catalog.updatedAt = clock().toISOString();
+        setCatalog(n.catalog);
+        return Promise.resolve({ ok: true, catalog: catalog, local: true });
+      }
+      return call('saveCatalog', { catalog: n.catalog, baseVersion: catalog.version || 0 }).then(function (res) {
+        if (res && res.ok) { setCatalog(res.catalog); return { ok: true, catalog: catalog }; }
+        if (res && res.code === 'conflict' && res.catalog) setCatalog(res.catalog);
+        return { ok: false, code: res && res.code, error: (res && res.error) || '保存に失敗しました' };
+      }, function (err) {
+        return { ok: false, code: 'network', error: '電波がないため保存できません: ' + ((err && err.message) || err) };
+      });
+    }
+
     function forecast(at) {
       return Core.forecast(records, at || clock(), {
         leadMinutes: cfg.leadMinutes, slotMinutes: cfg.slotMinutes,
@@ -278,6 +319,9 @@ var NomiSync = (function () {
       pullOps: pullOps,
       todayKey: todayKey,
       getOpQueue: function () { return opQueue.slice(); },
+      getCatalog: function () { return JSON.parse(JSON.stringify(catalog)); },
+      pullCatalog: pullCatalog,
+      saveCatalog: saveCatalog,
       getMeta: function () { return { lastSyncAt: meta.lastSyncAt, lastError: meta.lastError, deviceId: deviceId }; }
     };
   }
