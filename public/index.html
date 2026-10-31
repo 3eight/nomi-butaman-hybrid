@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#060b14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="能美豚饅管理" />
+  <link rel="manifest" href="/public/manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="/public/icon.svg" />
+  <link rel="apple-touch-icon" href="/public/icon.svg" />
+  <title>能美豚饅 蒸し・会計・注文管理システム</title>
+  <link rel="stylesheet" href="/public/styles.css" />
+</head>
+<body data-active-tab="settings">
+  <!-- トップヘッダー：シンプルで押しやすいメインナビゲーションとステータス -->
+  <header class="hud-header">
+    <div class="brand-row">
+      <div class="brand-title-wrap">
+        <span class="cyber-badge">NOMI-BUTAMAN SYSTEM</span>
+        <h1>能美豚饅 蒸し・会計・注文管理</h1>
+      </div>
+      <div class="meta-pills">
+        <span id="sync-status-pill" class="pill pill-warn" title="複数スマホ同期方式・通信切断時・画面非表示中の通知は現場未検証として扱っています">
+          同期確認中…
+        </span>
+        <span id="role-status-pill" class="pill pill-warn">担当確認中…</span>
+        <span id="connected-devices-pill" class="pill pill-info">接続端末: 1台</span>
+      </div>
+    </div>
+
+    <!-- 4大画面切り替えメインタブバー（初期画面: 設定・在庫準備） -->
+    <nav class="main-tabs-nav" aria-label="メイン画面ナビゲーション">
+      <button type="button" class="tab-btn active" data-tab-target="settings">
+        <span class="tab-num">①</span>
+        <span class="tab-icon">⚙️</span>
+        <span class="tab-title">設定・在庫準備</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab-target="steamer">
+        <span class="tab-num">②</span>
+        <span class="tab-icon">♨️</span>
+        <span class="tab-title">ムシ管理</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab-target="pos">
+        <span class="tab-num">③</span>
+        <span class="tab-icon">🧾</span>
+        <span class="tab-title">注文・会計</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab-target="analytics">
+        <span class="tab-num">④</span>
+        <span class="tab-icon">📊</span>
+        <span class="tab-title">データ・予想 (%表示)</span>
+      </button>
+    </nav>
+
+    <!-- 端末担当ロール選択（1人運用なら両方、分担なら注文係/キッチン係） -->
+    <div class="role-bar">
+      <span class="role-bar-label">このスマホの操作担当:</span>
+      <div class="role-btn-group">
+        <button type="button" id="btn-role-both" class="btn btn-outline btn-sm active" title="1人で運用する時にムシと会計の両方を担当します">👤 1人運用 (両方)</button>
+        <button type="button" id="btn-role-order" class="btn btn-outline btn-sm">🧾 注文係</button>
+        <button type="button" id="btn-role-kitchen" class="btn btn-outline btn-sm">♨️ キッチン係</button>
+        <button type="button" id="btn-role-viewer" class="btn btn-outline btn-sm">👀 閲覧のみ</button>
+      </div>
+      <button type="button" id="btn-open-mobile-connect" class="btn btn-cyan btn-sm">
+        📱 他スマホ接続 (QR/URL)
+      </button>
+    </div>
+  </header>
+
+  <!-- 他スマホ接続・QR/LAN URL案内 & 手動スナップショット共有モーダル -->
+  <div id="mobile-connect-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>全てのスマホで使う（複数スマホ接続・データ共有）</h2>
+        <button type="button" id="btn-close-mobile-connect" class="btn btn-outline btn-sm">閉じる ✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="connect-section">
+          <h3>方法A：同一Wi-Fi / スマホテザリング内で全スマホリアルタイム共有</h3>
+          <p class="tiny-note">
+            親機（PCまたはサーバー起動端末）と同じWi-Fiまたはテザリングに各スマートフォン（iPhone Safari / Android Chrome）を繋ぎ、以下のURLをスマホのブラウザで開くと同じ出店データを共有します。
+            <strong>※同期方式・通信切断時・画面非表示中の通知挙動は仕様上「現場未検証 (UNVERIFIED)」として扱います。</strong>
+          </p>
+          <div id="lan-urls-box" class="lan-urls-box">読み込み中...</div>
+        </div>
+
+        <div class="connect-section">
+          <h3>方法B：ホーム画面に追加してフルスクリーンアプリ化（iOS / Android対応）</h3>
+          <p class="tiny-note">
+            ・<strong>iPhone / iPad (Safari)</strong>：画面下の「共有ボタン [↑]」→「ホーム画面に追加」をタップ<br />
+            ・<strong>Android (Chrome)</strong>：右上メニュー「⋮」→「アプリをインストール」または「ホーム画面に追加」をタップ
+          </p>
+        </div>
+
+        <div class="connect-section">
+          <h3>方法C：通信なし環境でのスマホ間データ引き継ぎ（JSONコピー / LINE・AirDrop共有）</h3>
+          <p class="tiny-note">
+            現場でWi-FiやLANが使えない場合でも、下のボタンで現在の全出店データをコピーし、別スマホへ貼り付けて即座に引き継げます。
+          </p>
+          <div class="inline-controls" style="margin-bottom:6px;">
+            <button type="button" id="btn-copy-snapshot" class="btn btn-cyan btn-sm">現在の出店データをコピー</button>
+            <button type="button" id="btn-apply-snapshot" class="btn btn-emerald btn-sm">貼り付けたデータを読み込む</button>
+          </div>
+          <textarea id="snapshot-transfer-textarea" rows="3" class="text-input" placeholder="ここにコピーしたJSONデータを貼り付けて「読み込む」を押すと別スマホの状態を復元できます"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- メインコンテンツコンテナ（タブ選択により1画面ずつ見やすく表示） -->
+  <main class="hud-main">
+
+    <!-- ======================================================== -->
+    <!-- 画面①：設定・在庫準備画面（価格・商品・営業時間・在庫数の登録） -->
+    <!-- ======================================================== -->
+    <section id="tab-settings" class="tab-panel active">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h2>① 設定・在庫準備 // 営業前登録コンソール</h2>
+            <p class="panel-caption">
+              出店前の設定を行います。価格や商品マスタ、営業予定時刻、初期搬入在庫数、本日の目標販売個数を登録してください。
+            </p>
+          </div>
+          <div class="form-btn-group">
+            <button type="button" id="btn-save-settings" class="btn btn-primary btn-lg">
+              設定を保存して営業開始（ムシ画面へ）➔
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- 営業予定時刻 -->
+          <div class="card-sub-box">
+            <h3>⏰ 1. 営業予定時刻</h3>
+            <p class="tiny-note">当日の出店営業時間を入力してください。データ管理画面で時間あたりの進捗率(%)を計算します。</p>
+            <div class="field-row">
+              <label>営業開始: <input type="time" id="setting-start-time" value="10:00" class="text-input" /></label>
+              <label>営業終了: <input type="time" id="setting-end-time" value="17:00" class="text-input" /></label>
+            </div>
+          </div>
+
+          <!-- イベントサービス特典設定 -->
+          <div class="card-sub-box">
+            <h3>🎁 2. 本部特典サービス設定</h3>
+            <p class="tiny-note">本部負担のサービス特典ルール（仕様: 有料まん5個ごとに1個無料）を有効にするか設定します。</p>
+            <label class="toggle-label" style="font-size:15px; margin-top:8px;">
+              <input type="checkbox" id="toggle-event-service" checked />
+              <strong>有料まん5個毎に1個無料サービスを有効にする (本部負担)</strong>
+            </label>
+          </div>
+
+          <!-- 商品と価格設定 -->
+          <div class="card-sub-box full-width">
+            <h3>🏷️ 3. 商品・単価・配分割合の登録</h3>
+            <p class="tiny-note">※豚まん価格は500円（本部50%/出店者50%）が標準仕様です（現地要確認）。</p>
+            <div class="table-responsive">
+              <table class="hud-table">
+                <thead>
+                  <tr>
+                    <th>商品コード</th>
+                    <th>商品名</th>
+                    <th>販売価格 (税込)</th>
+                    <th>本部売上配分</th>
+                    <th>出店者売上配分</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>butaman</code></td>
+                    <td>豚まん (蒸し・揚げ)</td>
+                    <td>¥ <input type="number" id="price-butaman" value="500" min="100" step="50" class="num-input-wide" /></td>
+                    <td>50% (¥250)</td>
+                    <td>50% (¥250)</td>
+                  </tr>
+                  <tr>
+                    <td><code>anbataman</code></td>
+                    <td>あんバタまん (蒸し・揚げ)</td>
+                    <td>¥ <input type="number" id="price-anbataman" value="450" min="100" step="50" class="num-input-wide" /></td>
+                    <td>50% (¥225)</td>
+                    <td>50% (¥225)</td>
+                  </tr>
+                  <tr>
+                    <td><code>potato</code></td>
+                    <td>ポテト (揚げのみ)</td>
+                    <td>¥ <input type="number" id="price-potato" value="300" min="100" step="50" class="num-input-wide" /></td>
+                    <td>0% (¥0)</td>
+                    <td>100% (出店者全額 ※原価未精査)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 初期在庫数と販売目標個数の登録 -->
+          <div class="card-sub-box full-width">
+            <h3>📦 4. 初期搬入在庫数 ＆ 今日の販売目標個数の登録</h3>
+            <p class="tiny-note">データ管理画面でリアルタイムに目標達成率（％）と在庫消費率（％）を自動算出します。</p>
+            <div class="inventory-target-grid">
+              <div class="inv-card">
+                <h4>🐷 豚まん</h4>
+                <div class="field-item">
+                  <label>初期持込在庫数:</label>
+                  <input type="number" id="inv-butaman" value="200" min="0" class="text-input" /> 個
+                </div>
+                <div class="field-item">
+                  <label>目標販売個数:</label>
+                  <input type="number" id="target-butaman" value="150" min="1" class="text-input" /> 個
+                </div>
+              </div>
+
+              <div class="inv-card">
+                <h4>🧈 あんバタまん</h4>
+                <div class="field-item">
+                  <label>初期持込在庫数:</label>
+                  <input type="number" id="inv-anbataman" value="100" min="0" class="text-input" /> 個
+                </div>
+                <div class="field-item">
+                  <label>目標販売個数:</label>
+                  <input type="number" id="target-anbataman" value="80" min="1" class="text-input" /> 個
+                </div>
+              </div>
+
+              <div class="inv-card">
+                <h4>🍟 ポテト</h4>
+                <div class="field-item">
+                  <label>初期持込在庫数:</label>
+                  <input type="number" id="inv-potato" value="120" min="0" class="text-input" /> 個
+                </div>
+                <div class="field-item">
+                  <label>目標販売個数:</label>
+                  <input type="number" id="target-potato" value="100" min="1" class="text-input" /> 個
+                </div>
+              </div>
+            </div>
+
+            <div class="field-row" style="margin-top:14px;">
+              <label>想定販売ペース（次の1時間需要予想）:
+                <input type="number" id="forecast-hourly-rate" value="20" min="1" class="num-sm" /> 個/時間
+              </label>
+            </div>
+          </div>
+
+          <!-- デモ・リセット補助操作 -->
+          <div class="card-sub-box full-width" style="background: rgba(255,255,255,0.02);">
+            <h3>🛠️ 補助メンテナンス</h3>
+            <div class="inline-controls">
+              <button type="button" id="btn-seed-demo" class="btn btn-outline btn-sm">初期デモデータを投入</button>
+              <button type="button" id="btn-reset-all" class="btn btn-danger btn-sm">出店データを全リセット</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 画面②：ムシ管理画面（せいろ透視・段別タイマー・途中1個追加・揚げ在庫） -->
+    <!-- ======================================================== -->
+    <section id="tab-steamer" class="tab-panel">
+      <!-- 蒸し助言ミニHUD -->
+      <div class="advice-hud" id="advice-hud"></div>
+
+      <div class="panel-steamer">
+        <div class="panel-header">
+          <div>
+            <h2>② SEIRO X-RAY WIREFRAME // せいろ透視・段別タイマー</h2>
+            <p class="panel-caption">
+              実物1段ごとの固定番号（1〜4 / 5〜8 / 9〜12案）と一致。満了で自動的に段を空にしません（予定時刻到来と調理確認済みを区別）。空き枠タップで<strong>途中1個追加</strong>（独立タイマー）。
+            </p>
+          </div>
+          <div class="quick-fry-stock" id="fry-stock-bar">
+            <!-- 揚げ在庫操作バー -->
+          </div>
+        </div>
+
+        <!-- 一括せいろ投入フォーム -->
+        <div class="steamer-load-bar">
+          <label>段選択: <select id="load-tier-select" aria-label="投入段番号"></select></label>
+          <label>商品: 
+            <select id="load-product-select" aria-label="投入商品">
+              <option value="butaman">豚まん (蒸し)</option>
+              <option value="anbataman">あんバタまん (蒸し)</option>
+            </select>
+          </label>
+          <label>個数: <input type="number" id="load-qty-input" value="5" min="1" max="6" aria-label="投入個数" class="num-sm" /></label>
+          <button type="button" id="btn-load-batch" class="btn btn-cyan">段へ投入 (40分タイマー開始)</button>
+          <button type="button" id="btn-load-midstream-1" class="btn btn-outline" title="ピーク時に選択段の空きスロットへ冷凍品を1個だけ途中追加します">
+            ＋ 途中1個追加 (独立タイマー)
+          </button>
+        </div>
+
+        <!-- 3セット（通常1: 1〜4段, 通常2: 5〜8段, 電気: 9〜12段）の透視ワイヤーフレーム -->
+        <div id="steamer-sets-container" class="steamer-sets-grid"></div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 画面③：会計・注文管理画面（注文受付・サービス枠・待ちキュー・段案内・段付け替え訂正） -->
+    <!-- ======================================================== -->
+    <section id="tab-pos" class="tab-panel">
+      <div class="pos-dual-grid">
+        <!-- 左側：新規注文受付 & 変更モード -->
+        <div class="panel-order-form">
+          <div class="panel-header">
+            <h2 id="order-form-title">③ ORDER CONSOLE // 新規注文受付</h2>
+            <span id="editing-order-badge" class="pill pill-accent hidden">変更モード中</span>
+          </div>
+
+          <div class="order-builder">
+            <h3>1. 有料商品の選択（商品 × 蒸し/揚げ）</h3>
+            <div id="paid-items-grid" class="sku-counter-grid"></div>
+
+            <!-- 5個ごと1個無料サービス枠パネル -->
+            <div id="service-box" class="service-box">
+              <div class="service-header">
+                <div>
+                  <strong>本部負担サービス枠（有料まん5個ごと1個）</strong>
+                  <div id="service-entitlement-text" class="service-sub">有料まん合計: 0個 → 無料枠: 0個</div>
+                </div>
+                <label class="toggle-label">
+                  <input type="checkbox" id="chk-decline-all-service" />
+                  <span>この注文で無料分を全辞退</span>
+                </label>
+              </div>
+              <p class="tiny-note">※無料分も「まんの種類×蒸し/揚げ」を選択可能。辞退分（未選択分）は在庫減算・本部負担サービス費用に計上しません。</p>
+              <div id="free-items-grid" class="sku-counter-grid free-grid"></div>
+            </div>
+
+            <!-- 任意の客の特徴タグ（数タップ選択・必須にしない） -->
+            <div class="customer-features-box">
+              <h3>2. 客の特徴タグ（任意・数タップ選択・未選択可）</h3>
+              <div id="feature-chips-container" class="chips-wrap"></div>
+              <input type="text" id="input-customer-note" class="text-input" placeholder="任意メモ（例：青い傘、呼び出し番号札など ※未入力可）" />
+            </div>
+
+            <!-- 会計・決済記録選択（先払い標準・後払い可） -->
+            <div class="payment-box" id="new-order-payment-box">
+              <h3>3. 会計・支払タイミング（受渡状態とは独立）</h3>
+              <div class="payment-timing-row">
+                <label><input type="radio" name="payTiming" value="PREPAID" checked /> 先払い（標準・即時入金記録）</label>
+                <label><input type="radio" name="payTiming" value="POSTPAID" /> 後払い（未払いで受付）</label>
+              </div>
+              <div class="payment-method-row" id="prepaid-method-row">
+                <span>記録手段（決済代行なし）:</span>
+                <label><input type="radio" name="payMethod" value="CASH" checked /> 現金</label>
+                <label><input type="radio" name="payMethod" value="PAYPAY" /> PayPay</label>
+                <label><input type="radio" name="payMethod" value="TOCHITSUKA" /> トチツーカ</label>
+              </div>
+            </div>
+
+            <div class="order-summary-bar">
+              <div>
+                <div class="total-price-label">お会計合計（有料分）</div>
+                <div id="order-total-amount" class="total-price-value">¥0</div>
+                <div id="order-service-summary" class="tiny-note">本部負担サービス計上: ¥0 (辞退: 0個)</div>
+              </div>
+              <div class="form-btn-group">
+                <button type="button" id="btn-cancel-edit" class="btn btn-outline hidden">変更キャンセル</button>
+                <button type="button" id="btn-submit-order" class="btn btn-primary btn-lg">注文を確定する</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右側：待ち注文・お渡し段案内・段付け替え訂正 -->
+        <div class="panel-queue">
+          <div class="panel-header">
+            <div>
+              <h2>ACTIVE QUEUE &amp; PICK GUIDE // 待ち注文・お渡し</h2>
+              <p class="panel-caption">
+                「お渡し完了」で案内された段から自動減算（通常は段入力不要）。案内表示だけでは入金/返金完了になりません。
+              </p>
+            </div>
+          </div>
+
+          <!-- 直前注文の「段取り出し最少訂正（付け替え）」バー -->
+          <div class="correction-bar">
+            <div class="correction-title">
+              <strong>違う段から取った場合の最少訂正（直前注文等の段付け替え）</strong>
+              <span>※指示と違う段から取った時だけ実行してください（元段を戻し、実段を減算して履歴記録）</span>
+            </div>
+            <div class="correction-controls">
+              <select id="corr-order-select" aria-label="訂正対象注文"></select>
+              <label>元段 <input type="number" id="corr-from-tier" min="1" max="12" value="1" class="num-sm" /></label>
+              <span>→</span>
+              <label>実段 <input type="number" id="corr-to-tier" min="1" max="12" value="2" class="num-sm" /></label>
+              <label>個数 <input type="number" id="corr-qty" min="1" max="6" value="1" class="num-sm" /></label>
+              <button type="button" id="btn-exec-correction" class="btn btn-warn btn-sm">段を付け替え訂正</button>
+            </div>
+            <div id="correction-history-line" class="tiny-note">訂正履歴: 0件</div>
+          </div>
+
+          <!-- 待ち注文カードリスト -->
+          <div id="waiting-orders-list" class="orders-list"></div>
+
+          <!-- 完了済み・全注文履歴折りたたみ -->
+          <details class="completed-orders-drawer">
+            <summary>完了済み・全注文履歴を表示 (<span id="all-orders-count">0</span>件)</summary>
+            <div id="all-orders-list" class="orders-list compact"></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ======================================================== -->
+    <!-- 画面④：データ管理画面（販売実績・目標達成率%・予想個数・廃棄・精算） -->
+    <!-- ======================================================== -->
+    <section id="tab-analytics" class="tab-panel">
+      <div class="analytics-container">
+        <div class="panel-header">
+          <div>
+            <h2>④ DATA &amp; FORECAST CONSOLE // データ管理・予想・精算</h2>
+            <p class="panel-caption">
+              目標販売個数に対する達成率（％）や在庫消費率、次の時間帯の需要予測個数、廃棄集計、出店精算サマリを確認できます。
+            </p>
+          </div>
+          <button type="button" id="btn-refresh-analytics" class="btn btn-outline btn-sm">最新データ再読込 ⟳</button>
+        </div>
+
+        <!-- 目標達成率 ＆ 予想個数ダッシュボード -->
+        <div id="analytics-progress-cards" class="analytics-grid">
+          <!-- JSで自動描画（%プログレスバー、予想個数、在庫残数） -->
+        </div>
+
+        <!-- 下段：廃棄管理 ＆ 経費確定 ＆ 精算サマリ -->
+        <div class="analytics-sub-grid">
+          <!-- 廃棄記録 -->
+          <div class="footer-card">
+            <h3>🗑️ 廃棄（ロス）記録（本部負担 vs 出店者過失250円/個）</h3>
+            <div class="inline-controls">
+              <select id="waste-product">
+                <option value="butaman">豚まん</option>
+                <option value="anbataman">あんバタまん</option>
+                <option value="potato">ポテト</option>
+              </select>
+              <select id="waste-reason">
+                <option value="DEFECT_HQ">商品不良 ＝ 本部負担 (0円)</option>
+                <option value="NEGLIGENCE_VENDOR">蒸しすぎ等過失 ＝ 出店者負担 (250円/個)</option>
+              </select>
+              <input type="number" id="waste-qty" value="1" min="1" max="20" class="num-sm" />
+              <input type="text" id="waste-batch-id" placeholder="任意: BATCH-0001" class="text-sm" />
+              <button type="button" id="btn-record-waste" class="btn btn-outline btn-sm">廃棄を記録</button>
+            </div>
+            <div id="waste-summary-text" class="tiny-note" style="margin-top:8px;"></div>
+          </div>
+
+          <!-- 経費確定 -->
+          <div class="footer-card">
+            <h3>💰 経費入力（任意・未入力を0円確定にしない）</h3>
+            <div class="inline-controls">
+              <input type="number" id="expense-amount-input" placeholder="未入力 (null)" min="0" step="10" class="text-sm" />
+              <button type="button" id="btn-confirm-expense" class="btn btn-outline btn-sm">金額を確定 (0円確定も可)</button>
+              <button type="button" id="btn-clear-expense" class="btn btn-outline btn-sm">未入力状態に戻す</button>
+            </div>
+            <div id="expense-summary-text" class="tiny-note" style="margin-top:8px;"></div>
+          </div>
+        </div>
+
+        <!-- 精算・配分サマリカード -->
+        <div class="footer-card settlement-card" id="settlement-summary-box" style="margin-top:16px;">
+          <!-- 精算サマリ表示 -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- トースト通知エリア -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="/public/app.js"></script>
+</body>
+</html>

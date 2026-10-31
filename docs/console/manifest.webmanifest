@@ -1,0 +1,18 @@
+{
+  "name": "能美豚饅 蒸し・会計・注文管理システム v0.2",
+  "short_name": "能美豚饅管理",
+  "description": "イベント出店用 せいろ透視タイマー・5個毎1個無料サービス・会計・待ち注文・段別取り出し案内システム",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060b14",
+  "theme_color": "#00f0ff",
+  "icons": [
+    {
+      "src": "/public/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,3 +1,12 @@
+# 出店データ（注文・客の特徴・会計を含む）はリポジトリに入れない
+.data/
+*.tmp
+
+# 依存・環境
 node_modules/
-.DS_Store
 .clasp.json
+.env
+.env.*
+
+# OS
+.DS_Store
