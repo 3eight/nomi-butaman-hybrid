@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07090c">
+  <meta name="robots" content="noindex">
+  <title>キッチン画面 デザインプレビュー（デモ値）</title>
+  <!--
+    デザイン検討用の単体プレビューです（URL: …/preview/kitchen.html）。アプリ本体（index.html）からはリンクしておらず、
+    機能・データ連携はありません。数値はすべてデモ値です。
+  -->
+  <style>
+    :root {
+      --bg: #07090c;
+      --line: rgba(255, 196, 64, .22);     /* ワイヤーフレームの線 */
+      --line-strong: rgba(255, 196, 64, .6);
+      --gold: #ffc440;
+      --gold-soft: #ffe2a0;
+      --red: #ff3448;
+      --cyan: #5ee6ff;
+      --text: #fffaf0;
+      --muted: #d9c9a8;
+      --card: rgba(18, 12, 10, .78);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background:
+        linear-gradient(var(--bg), var(--bg)) padding-box,
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    /* 背景のワイヤーフレームグリッド（控えめ） */
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,196,64,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,196,64,.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+      mask-image: radial-gradient(120% 80% at 50% 30%, #000 40%, transparent 100%);
+      -webkit-mask-image: radial-gradient(120% 80% at 50% 30%, #000 40%, transparent 100%);
+    }
+
+    .screen {
+      position: relative;
+      max-width: 520px; margin: 0 auto; min-height: 100%;
+      padding: max(14px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+      display: grid; grid-template-rows: auto 1fr; gap: 12px;
+    }
+
+    /* ---- ヘッダー（小さく・情報最小） ---- */
+    .head { display: flex; align-items: center; justify-content: space-between; }
+    .head .title { font-size: 13px; font-weight: 800; letter-spacing: .32em; color: var(--gold); }
+    .head .title b { color: var(--text); font-weight: 800; }
+    .head .clock {
+      font-size: 15px; font-weight: 700; color: var(--gold-soft);
+      font-variant-numeric: tabular-nums; letter-spacing: .08em;
+      padding: 3px 10px; border: 1px solid var(--line-strong);
+      clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+    }
+
+    .cards { display: grid; grid-template-rows: auto; gap: 10px; align-content: start; }
+
+    /* ---- HUDカード ---- */
+    .card {
+      --accent: var(--gold);
+      position: relative;
+      display: grid; grid-template-rows: auto 1fr auto; align-items: center;
+      padding: 12px 14px 10px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%),
+        var(--card);
+      border: 1px solid var(--line);
+      /* 角を斜めに落としたワイヤーフレーム形状 */
+      clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+      min-height: 0;
+    }
+    /* 角ブラケット */
+    .card::before, .card::after {
+      content: ""; position: absolute; width: 26px; height: 26px; pointer-events: none;
+      border: 2px solid var(--accent);
+    }
+    .card::before { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
+    .card::after { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
+
+    .label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 19px; font-weight: 800; letter-spacing: .14em; color: var(--accent);
+    }
+    .label .idx {
+      font-size: 11px; letter-spacing: .1em; color: var(--bg); background: var(--accent);
+      padding: 2px 6px; font-weight: 800;
+    }
+    .tag {
+      font-size: 11px; font-weight: 800; letter-spacing: .18em; color: var(--accent);
+      border: 1px solid currentColor; padding: 2px 7px; opacity: .9;
+    }
+
+    .value {
+      display: flex; align-items: baseline; justify-content: center; gap: 6px;
+      font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+      color: var(--text);
+      font-size: clamp(76px, 25vw, 124px);
+      letter-spacing: -.02em;
+    }
+    .value .unit { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: .1em; }
+
+    /* 目盛り付きゲージ（ワイヤーフレーム） */
+    .gauge {
+      position: relative; height: 10px; margin-top: 6px;
+      border: 1px solid var(--line-strong);
+      background: repeating-linear-gradient(90deg, transparent 0 9%, rgba(255,196,64,.25) 9% 10%);
+    }
+    .gauge > i { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: .85; }
+    .sub {
+      display: flex; justify-content: space-between; margin-top: 6px;
+      font-size: 14px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;
+    }
+    .sub strong { color: var(--text); }
+
+    /* 冷凍在庫: シアン（冷たさ）／蒸し中: 赤（加熱）／次に蒸す: 金（主役） */
+    .card.frozen { --accent: var(--cyan); }
+    .card.steaming { --accent: var(--red); }
+    .card.next {
+      --accent: var(--gold);
+      border-color: var(--line-strong);
+      background:
+        radial-gradient(90% 70% at 50% 55%, rgba(255,196,64,.14), transparent 70%),
+        var(--card);
+    }
+    .card.next .value { font-size: clamp(96px, 32vw, 152px); color: #fff; text-shadow: 0 0 22px rgba(255,196,64,.45); }
+    .card.next .label { font-size: 22px; }
+
+    /* 蒸し中の脈動（動きを減らす設定では停止） */
+    .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .25; } }
+
+    /* ---- セイロ別ステータス（現在蒸し中カード内） ---- */
+    .value-mid { font-size: clamp(52px, 15vw, 80px); margin: 0 0 6px; }
+    .card.frozen .value { font-size: clamp(60px, 20vw, 100px); }
+    .card.steaming::after { display: none; }
+    .seiro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+    .seiro {
+      --s: var(--red);
+      position: relative; display: grid; justify-items: center; gap: 2px;
+      padding: 8px 6px 8px;
+      border: 1px solid rgba(255, 52, 72, .35);
+      background: linear-gradient(180deg, rgba(255, 52, 72, .07), transparent 60%);
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+    .seiro.soon { --s: var(--gold); border-color: rgba(255, 196, 64, .7); background: linear-gradient(180deg, rgba(255, 196, 64, .12), transparent 60%); }
+    .seiro-name { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; letter-spacing: .08em; color: var(--text); }
+    .seiro-id { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 12px; font-weight: 900; color: var(--bg); background: var(--s); }
+    
+
+    .seiro-icon { width: 100px; height: 100px; display: block; }
+    .seiro-icon .ticks { fill: none; stroke: var(--s); stroke-width: 3; stroke-dasharray: 1.2 10.32; opacity: .55; }
+    .seiro-icon .track { fill: none; stroke: rgba(255, 255, 255, .1); stroke-width: 5; }
+    .seiro-icon .prog { fill: none; stroke: var(--s); stroke-width: 5; stroke-linecap: butt; filter: drop-shadow(0 0 4px var(--s)); }
+    .seiro-icon .rim { fill: rgba(255, 196, 64, .05); stroke: var(--gold-soft); stroke-width: 2; opacity: .8; }
+    .seiro-icon .rim-in { fill: none; stroke: var(--gold-soft); stroke-width: 1; opacity: .45; }
+    .seiro-icon .slats line { stroke: var(--gold-soft); stroke-width: 1; opacity: .3; }
+    .seiro-icon .core { fill: #0d0a09; stroke: var(--s); stroke-width: 1.5; }
+    .seiro-icon .t-min { fill: #fff; font-size: 42px; font-weight: 900; font-family: inherit; }
+    .seiro-icon .t-lbl { fill: var(--muted); font-size: 10px; font-weight: 800; font-family: inherit; letter-spacing: .1em; }
+    .seiro-icon .t-unit { fill: var(--s); font-size: 13px; font-weight: 800; font-family: inherit; }
+
+    .seiro-qty { font-size: 38px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+    .seiro-qty span { font-size: 15px; color: var(--s); margin-left: 2px; }
+    .seiro-meta { font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .seiro-meta b { color: var(--text); font-size: 17px; margin-left: 2px; }
+    .soon-bar { width: 100%; margin-top: 4px; text-align: center; font-size: 13px; font-weight: 900; letter-spacing: .12em; color: var(--bg); background: var(--gold); padding: 2px 0; animation: pulse 1.2s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) { .pulse, .soon-bar { animation: none; } }
+  </style>
+</head>
+<body>
+  <main class="screen" aria-label="キッチン画面（デモ）">
+    <header class="head">
+      <div class="title">能美豚饅 <b>KITCHEN</b></div>
+      <div class="clock" aria-label="現在時刻">11:36</div>
+    </header>
+
+    <section class="cards">
+      <!-- 1) 冷凍在庫 -->
+      <article class="card frozen" aria-label="冷凍在庫 120個">
+        <div class="label-row">
+          <div class="label"><span class="idx">01</span>冷凍在庫</div>
+          <span class="tag">FROZEN</span>
+        </div>
+        <div class="value">120<span class="unit">個</span></div>
+        <div>
+          <div class="gauge" aria-hidden="true"><i style="width:60%"></i></div>
+          <div class="sub"><span>容量 200</span><span>残り <strong>約2.5時間分</strong></span></div>
+        </div>
+      </article>
+
+      <!-- 2) 現在蒸し中（セイロ別の状態つき） -->
+      <article class="card steaming" aria-label="現在蒸し中 合計36個">
+        <div class="label-row">
+          <div class="label"><span class="idx">02</span>現在蒸し中</div>
+          <span class="tag" style="display:flex;align-items:center;gap:6px"><span class="pulse"></span>STEAM</span>
+        </div>
+        <div class="value value-mid">36<span class="unit">個</span></div>
+
+        <div class="seiro-grid">
+          <!-- セイロA: 24個 / 開始11:29 / 残り8分（15分中7分経過） -->
+          <div class="seiro" aria-label="セイロA 24個 開始11時29分 残り8分">
+            <div class="seiro-name"><span class="seiro-id">A</span>セイロA</div>
+            <svg class="seiro-icon" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><clipPath id="inA"><circle cx="60" cy="60" r="37"/></clipPath></defs>
+              <circle class="ticks" cx="60" cy="60" r="56"/>
+              <circle class="track" cx="60" cy="60" r="50"/>
+              <circle class="prog" cx="60" cy="60" r="50" stroke-dasharray="146.6 314.2" transform="rotate(-90 60 60)"/>
+              <circle class="rim" cx="60" cy="60" r="43"/>
+              <circle class="rim-in" cx="60" cy="60" r="37"/>
+              <g clip-path="url(#inA)" class="slats">
+                <line x1="10" y1="34" x2="110" y2="34"/><line x1="10" y1="47" x2="110" y2="47"/>
+                <line x1="10" y1="73" x2="110" y2="73"/><line x1="10" y1="86" x2="110" y2="86"/>
+              </g>
+              <circle class="core" cx="60" cy="60" r="32"/>
+              <text class="t-lbl" x="60" y="46" text-anchor="middle">残り</text>
+              <text class="t-min" x="55" y="80" text-anchor="middle">8</text>
+              <text class="t-unit" x="70" y="80" text-anchor="start">分</text>
+            </svg>
+            <div class="seiro-qty">24<span>個</span></div>
+            <div class="seiro-meta">開始 <b>11:29</b></div>
+          </div>
+
+          <!-- セイロB: 12個 / 開始11:24 / 残り3分（まもなく完成） -->
+          <div class="seiro soon" aria-label="セイロB 12個 開始11時24分 残り3分 まもなく完成">
+            <div class="seiro-name"><span class="seiro-id">B</span>セイロB</div>
+            <svg class="seiro-icon" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><clipPath id="inB"><circle cx="60" cy="60" r="37"/></clipPath></defs>
+              <circle class="ticks" cx="60" cy="60" r="56"/>
+              <circle class="track" cx="60" cy="60" r="50"/>
+              <circle class="prog" cx="60" cy="60" r="50" stroke-dasharray="251.3 314.2" transform="rotate(-90 60 60)"/>
+              <circle class="rim" cx="60" cy="60" r="43"/>
+              <circle class="rim-in" cx="60" cy="60" r="37"/>
+              <g clip-path="url(#inB)" class="slats">
+                <line x1="10" y1="34" x2="110" y2="34"/><line x1="10" y1="47" x2="110" y2="47"/>
+                <line x1="10" y1="73" x2="110" y2="73"/><line x1="10" y1="86" x2="110" y2="86"/>
+              </g>
+              <circle class="core" cx="60" cy="60" r="32"/>
+              <text class="t-lbl" x="60" y="46" text-anchor="middle">残り</text>
+              <text class="t-min" x="55" y="80" text-anchor="middle">3</text>
+              <text class="t-unit" x="70" y="80" text-anchor="start">分</text>
+            </svg>
+            <div class="seiro-qty">12<span>個</span></div>
+            <div class="seiro-meta">開始 <b>11:24</b></div>
+            <div class="soon-bar">まもなく完成</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 3) 次に蒸す数（主役） -->
+      <article class="card next" aria-label="次に蒸す数 18個">
+        <div class="label-row">
+          <div class="label"><span class="idx">03</span>次に蒸す数</div>
+          <span class="tag">NEXT</span>
+        </div>
+        <div class="value">18<span class="unit">個</span></div>
+        <div class="sub"><span>12:16頃の目安</span><span>土 12:00-12:30 ・ 実績<strong>4回</strong></span></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
