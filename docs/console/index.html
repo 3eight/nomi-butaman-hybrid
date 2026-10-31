@@ -69,41 +69,25 @@
     </div>
   </header>
 
-  <!-- 他スマホ接続・QR/LAN URL案内 & 手動スナップショット共有モーダル -->
-  <div id="mobile-connect-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+  <!-- 他スマホ接続・QR/LAN URL案内モーダル（デフォルト非表示） -->
+  <div id="mobile-connect-modal" class="modal-backdrop hidden" hidden role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
-        <h2>全てのスマホで使う（複数スマホ接続・データ共有）</h2>
-        <button type="button" id="btn-close-mobile-connect" class="btn btn-outline btn-sm">閉じる ✕</button>
+        <h2>📱 スマホ接続 URL</h2>
+        <button type="button" id="btn-close-mobile-connect" class="btn btn-close-modal">✕ 閉じる</button>
       </div>
       <div class="modal-body">
         <div class="connect-section">
-          <h3>方法A：同一Wi-Fi / スマホテザリング内で全スマホリアルタイム共有</h3>
-          <p class="tiny-note">
-            親機（PCまたはサーバー起動端末）と同じWi-Fiまたはテザリングに各スマートフォン（iPhone Safari / Android Chrome）を繋ぎ、以下のURLをスマホのブラウザで開くと同じ出店データを共有します。
-            <strong>※同期方式・通信切断時・画面非表示中の通知挙動は仕様上「現場未検証 (UNVERIFIED)」として扱います。</strong>
-          </p>
+          <p style="font-size:14px; margin:4px 0 8px;">各スマホのブラウザで以下のURLを開くと全員でデータを共有できます：</p>
           <div id="lan-urls-box" class="lan-urls-box">読み込み中...</div>
         </div>
 
-        <div class="connect-section">
-          <h3>方法B：ホーム画面に追加してフルスクリーンアプリ化（iOS / Android対応）</h3>
-          <p class="tiny-note">
-            ・<strong>iPhone / iPad (Safari)</strong>：画面下の「共有ボタン [↑]」→「ホーム画面に追加」をタップ<br />
-            ・<strong>Android (Chrome)</strong>：右上メニュー「⋮」→「アプリをインストール」または「ホーム画面に追加」をタップ
-          </p>
-        </div>
-
-        <div class="connect-section">
-          <h3>方法C：通信なし環境でのスマホ間データ引き継ぎ（JSONコピー / LINE・AirDrop共有）</h3>
-          <p class="tiny-note">
-            現場でWi-FiやLANが使えない場合でも、下のボタンで現在の全出店データをコピーし、別スマホへ貼り付けて即座に引き継げます。
-          </p>
-          <div class="inline-controls" style="margin-bottom:6px;">
-            <button type="button" id="btn-copy-snapshot" class="btn btn-cyan btn-sm">現在の出店データをコピー</button>
-            <button type="button" id="btn-apply-snapshot" class="btn btn-emerald btn-sm">貼り付けたデータを読み込む</button>
+        <div class="connect-section" style="margin-top:16px;">
+          <div class="inline-controls">
+            <button type="button" id="btn-copy-snapshot" class="btn btn-cyan btn-sm">現在のデータをコピー</button>
+            <button type="button" id="btn-apply-snapshot" class="btn btn-emerald btn-sm">データを読み込む</button>
           </div>
-          <textarea id="snapshot-transfer-textarea" rows="3" class="text-input" placeholder="ここにコピーしたJSONデータを貼り付けて「読み込む」を押すと別スマホの状態を復元できます"></textarea>
+          <textarea id="snapshot-transfer-textarea" rows="2" class="text-input" style="margin-top:6px;" placeholder="バックアップJSON貼付"></textarea>
         </div>
       </div>
     </div>
@@ -119,13 +103,10 @@
       <div class="panel-card">
         <div class="panel-header">
           <div>
-            <h2>① 設定・在庫準備 // 営業前登録コンソール</h2>
-            <p class="panel-caption">
-              出店前の設定を行います。価格や商品マスタ、営業予定時刻、初期搬入在庫数、本日の目標販売個数を登録してください。
-            </p>
+            <h2>① 設定・在庫準備</h2>
           </div>
           <div class="form-btn-group">
-            <button type="button" id="btn-save-settings" class="btn btn-primary btn-lg">
+            <button type="button" id="btn-save-settings" class="btn btn-primary btn-lg" style="font-size:16px; font-weight:900;">
               設定を保存して営業開始（ムシ画面へ）➔
             </button>
           </div>
@@ -134,60 +115,53 @@
         <div class="settings-grid">
           <!-- 営業予定時刻 -->
           <div class="card-sub-box">
-            <h3>⏰ 1. 営業予定時刻</h3>
-            <p class="tiny-note">当日の出店営業時間を入力してください。データ管理画面で時間あたりの進捗率(%)を計算します。</p>
+            <h3>⏰ 1. 営業時間</h3>
             <div class="field-row">
-              <label>営業開始: <input type="time" id="setting-start-time" value="10:00" class="text-input" /></label>
-              <label>営業終了: <input type="time" id="setting-end-time" value="17:00" class="text-input" /></label>
+              <label>開始: <input type="time" id="setting-start-time" value="10:00" class="text-input" /></label>
+              <label>終了: <input type="time" id="setting-end-time" value="17:00" class="text-input" /></label>
             </div>
           </div>
 
           <!-- イベントサービス特典設定 -->
           <div class="card-sub-box">
-            <h3>🎁 2. 本部特典サービス設定</h3>
-            <p class="tiny-note">本部負担のサービス特典ルール（仕様: 有料まん5個ごとに1個無料）を有効にするか設定します。</p>
+            <h3>🎁 2. 本部特典サービス</h3>
             <label class="toggle-label" style="font-size:15px; margin-top:8px;">
               <input type="checkbox" id="toggle-event-service" checked />
-              <strong>有料まん5個毎に1個無料サービスを有効にする (本部負担)</strong>
+              <strong>有料まん5個毎に1個無料 (本部負担)</strong>
             </label>
           </div>
 
           <!-- 商品と価格設定 -->
           <div class="card-sub-box full-width">
-            <h3>🏷️ 3. 商品・単価・配分割合の登録</h3>
-            <p class="tiny-note">※豚まん価格は500円（本部50%/出店者50%）が標準仕様です（現地要確認）。</p>
+            <h3>🏷️ 3. 商品・販売価格</h3>
             <div class="table-responsive">
               <table class="hud-table">
                 <thead>
                   <tr>
-                    <th>商品コード</th>
-                    <th>商品名</th>
+                    <th>商品</th>
                     <th>販売価格 (税込)</th>
-                    <th>本部売上配分</th>
-                    <th>出店者売上配分</th>
+                    <th>本部配分</th>
+                    <th>出店者配分</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>butaman</code></td>
-                    <td>豚まん (蒸し・揚げ)</td>
+                    <td><strong>豚まん</strong></td>
                     <td>¥ <input type="number" id="price-butaman" value="500" min="100" step="50" class="num-input-wide" /></td>
                     <td>50% (¥250)</td>
                     <td>50% (¥250)</td>
                   </tr>
                   <tr>
-                    <td><code>anbataman</code></td>
-                    <td>あんバタまん (蒸し・揚げ)</td>
+                    <td><strong>あんバタまん</strong></td>
                     <td>¥ <input type="number" id="price-anbataman" value="450" min="100" step="50" class="num-input-wide" /></td>
                     <td>50% (¥225)</td>
                     <td>50% (¥225)</td>
                   </tr>
                   <tr>
-                    <td><code>potato</code></td>
-                    <td>ポテト (揚げのみ)</td>
+                    <td><strong>ポテト</strong></td>
                     <td>¥ <input type="number" id="price-potato" value="300" min="100" step="50" class="num-input-wide" /></td>
                     <td>0% (¥0)</td>
-                    <td>100% (出店者全額 ※原価未精査)</td>
+                    <td>100% (出店者全額)</td>
                   </tr>
                 </tbody>
               </table>
@@ -196,17 +170,16 @@
 
           <!-- 初期在庫数と販売目標個数の登録 -->
           <div class="card-sub-box full-width">
-            <h3>📦 4. 初期搬入在庫数 ＆ 今日の販売目標個数の登録</h3>
-            <p class="tiny-note">データ管理画面でリアルタイムに目標達成率（％）と在庫消費率（％）を自動算出します。</p>
+            <h3>📦 4. 在庫数 ＆ 販売目標</h3>
             <div class="inventory-target-grid">
               <div class="inv-card">
                 <h4>🐷 豚まん</h4>
                 <div class="field-item">
-                  <label>初期持込在庫数:</label>
+                  <label>持込在庫数:</label>
                   <input type="number" id="inv-butaman" value="200" min="0" class="text-input" /> 個
                 </div>
                 <div class="field-item">
-                  <label>目標販売個数:</label>
+                  <label>目標販売数:</label>
                   <input type="number" id="target-butaman" value="150" min="1" class="text-input" /> 個
                 </div>
               </div>
@@ -214,11 +187,11 @@
               <div class="inv-card">
                 <h4>🧈 あんバタまん</h4>
                 <div class="field-item">
-                  <label>初期持込在庫数:</label>
+                  <label>持込在庫数:</label>
                   <input type="number" id="inv-anbataman" value="100" min="0" class="text-input" /> 個
                 </div>
                 <div class="field-item">
-                  <label>目標販売個数:</label>
+                  <label>目標販売数:</label>
                   <input type="number" id="target-anbataman" value="80" min="1" class="text-input" /> 個
                 </div>
               </div>
@@ -226,18 +199,18 @@
               <div class="inv-card">
                 <h4>🍟 ポテト</h4>
                 <div class="field-item">
-                  <label>初期持込在庫数:</label>
+                  <label>持込在庫数:</label>
                   <input type="number" id="inv-potato" value="120" min="0" class="text-input" /> 個
                 </div>
                 <div class="field-item">
-                  <label>目標販売個数:</label>
+                  <label>目標販売数:</label>
                   <input type="number" id="target-potato" value="100" min="1" class="text-input" /> 個
                 </div>
               </div>
             </div>
 
             <div class="field-row" style="margin-top:14px;">
-              <label>想定販売ペース（次の1時間需要予想）:
+              <label>想定販売ペース（次の1時間予想）:
                 <input type="number" id="forecast-hourly-rate" value="20" min="1" class="num-sm" /> 個/時間
               </label>
             </div>
@@ -245,10 +218,9 @@
 
           <!-- デモ・リセット補助操作 -->
           <div class="card-sub-box full-width" style="background: rgba(255,255,255,0.02);">
-            <h3>🛠️ 補助メンテナンス</h3>
             <div class="inline-controls">
-              <button type="button" id="btn-seed-demo" class="btn btn-outline btn-sm">初期デモデータを投入</button>
-              <button type="button" id="btn-reset-all" class="btn btn-danger btn-sm">出店データを全リセット</button>
+              <button type="button" id="btn-seed-demo" class="btn btn-outline btn-sm">デモデータ投入</button>
+              <button type="button" id="btn-reset-all" class="btn btn-danger btn-sm">全リセット</button>
             </div>
           </div>
         </div>

@@ -963,6 +963,7 @@ function initStaticControls() {
   const modal = document.getElementById('mobile-connect-modal');
   document.getElementById('btn-open-mobile-connect').addEventListener('click', async () => {
     modal.classList.remove('hidden');
+    modal.removeAttribute('hidden');
     const box = document.getElementById('lan-urls-box');
     try {
       const res = await fetch('/api/network-info');
@@ -982,8 +983,30 @@ function initStaticControls() {
     }
   });
 
-  document.getElementById('btn-close-mobile-connect').addEventListener('click', () => {
+  const closeModal = () => {
     modal.classList.add('hidden');
+    modal.setAttribute('hidden', '');
+  };
+
+  const btnCloseModal = document.getElementById('btn-close-mobile-connect');
+  if (btnCloseModal) {
+    btnCloseModal.addEventListener('click', closeModal);
+    btnCloseModal.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      closeModal();
+    });
+  }
+
+  // 背景タップでも閉じる
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  // ESCキーでも閉じる
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
   });
 
   // スマホ間手動スナップショットコピー＆読み込み

@@ -26,7 +26,8 @@
   box-sizing: border-box;
 }
 
-[hidden] {
+[hidden],
+.hidden {
   display: none !important;
 }
 
@@ -1023,10 +1024,24 @@ select {
   padding-bottom: 10px;
 }
 
-.modal-header h2 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--gold);
+.btn-close-modal {
+  min-height: 44px;
+  min-width: 90px;
+  background: var(--red-deep) !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  border: 1px solid var(--gold) !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+}
+
+.btn-close-modal:hover {
+  background: var(--red) !important;
+  box-shadow: 0 0 10px rgba(255, 52, 72, 0.6);
 }
 
 .connect-section {
