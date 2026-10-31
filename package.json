@@ -1,0 +1,12 @@
+{
+  "name": "nomi-butaman-hybrid",
+  "version": "1.0.0",
+  "private": true,
+  "description": "能美豚饅 スマホ向けハイブリッド版（GitHub Pages + Google Apps Script）",
+  "scripts": {
+    "sync:gas": "node scripts/sync-gas.js",
+    "test": "node scripts/sync-gas.js --check && node --test tests/*.test.js",
+    "serve": "python3 -m http.server 8080 --directory docs"
+  },
+  "engines": { "node": ">=18" }
+}
