@@ -92,22 +92,15 @@ function showToast(msg, isError = false) {
 }
 
 function canWriteKitchen() {
-  if (!syncState.serverMode) return true;
-  return syncState.kitchenDeviceId === DEVICE_ID;
+  return true; // 1人設定・快適オペレーションのため常に操作可能
 }
 
 function canWriteOrder() {
-  if (!syncState.serverMode) return true;
-  return syncState.orderDeviceId === DEVICE_ID;
+  return true; // 1人設定・快適オペレーションのため常に操作可能
 }
 
 function myCurrentRole() {
-  const isK = canWriteKitchen();
-  const isO = canWriteOrder();
-  if (isK && isO) return 'both';
-  if (isK) return 'kitchen';
-  if (isO) return 'order';
-  return 'viewer';
+  return 'both'; // 常に両方操作可能
 }
 
 function saveLocal() {
@@ -236,11 +229,9 @@ async function flushToServer() {
       syncState.lastConflictAt = new Date().toISOString();
       showToast('他の端末の最新更新を反映しました。画面をご確認ください', true);
     } else if (data.code && data.code.startsWith('READ_ONLY')) {
-      backupLocalSnapshot(data.code);
-      adoptServerSnapshot(data.snapshot, data.revision);
-      if (domain === 'kitchen' || domain === 'all') syncState.dirtyKitchen = false;
-      if (domain === 'order' || domain === 'all') syncState.dirtyOrder = false;
-      showToast('担当ロールが他の端末にあるため、最新データを同期しました', true);
+      // 1人運用のスムーズな操作のため自動で担当を獲得して再送
+      await claimRole('both', true, { keepLocal: true });
+      retry = true;
     } else {
       retry = true;
     }
@@ -389,9 +380,11 @@ async function initApp() {
     }
     adoptServerSnapshot(data.snapshot, serverRev, data.kitchenRevision, data.orderRevision);
 
-    // まだ誰もロールを担当していなければ、初期接続端末を自動で「両方（1人運用）」に割り当て
-    if (!syncState.kitchenDeviceId && !syncState.orderDeviceId) {
-      await claimRole('both', false, { keepLocal: true });
+    // どの端末からでも即座に全機能が触れるよう、自動で両方（1人運用）を担当
+    try {
+      await claimRole('both', true, { keepLocal: true });
+    } catch {
+      // ignore
     }
   } catch {
     // サーバー未接続 → 端末内データで単独モード（データがなければ空で開始）
@@ -1379,16 +1372,18 @@ function renderIsometricSteamerStage(tiersSnap) {
         }
       }
 
-      // 1段に5個のスロットを生成
+      // 1段に5個のスロットを生成（サイコロの5の目 ⚄ 配置）
       const slotsHtml = [];
       const capacity = tier.capacity || 5;
 
       for (let s = 1; s <= capacity; s++) {
         const item = slotMap.get(s);
+        const dicePosClass = `dice-pos-${s}`;
+
         if (!item) {
           // 空きスロット: ワンタップで投入開始
           slotsHtml.push(`
-            <div class="iso-slot-node empty" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="タップで${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'}を投入 (40分タイマー開始)">
+            <div class="iso-slot-node empty ${dicePosClass}" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="タップで${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'}を投入 (40分タイマー開始)">
               <div class="slot-icon">➕</div>
               <div class="slot-action-label">蒸す</div>
             </div>
@@ -1400,7 +1395,7 @@ function renderIsometricSteamerStage(tiersSnap) {
           if (isBatchReady) {
             // 蒸し上がり完了: エメラルドグリーン発光！タップで消去（取り出し）
             slotsHtml.push(`
-              <div class="iso-slot-node ready ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-remove-tier="${tier.tierNumber}" data-iso-remove-slot="${s}" title="蒸し上がり完了！タップすると取り出し完了で消えます">
+              <div class="iso-slot-node ready ${dicePosClass} ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-remove-tier="${tier.tierNumber}" data-iso-remove-slot="${s}" title="蒸し上がり完了！タップすると取り出し完了で消えます">
                 <div class="slot-ready-title">READY</div>
                 <div style="font-size:12px; font-weight:800; color:#fff;">${shortName}</div>
                 <div class="slot-tap-remove">タップで取出し✕</div>
@@ -1411,7 +1406,7 @@ function renderIsometricSteamerStage(tiersSnap) {
             const remainingMin = Math.max(1, Math.ceil(batch.remainingSeconds / 60));
             const mmss = formatMMSS(batch.remainingSeconds);
             slotsHtml.push(`
-              <div class="iso-slot-node steaming ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-confirm-batch="${batch.batchId}" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="蒸し中（残り${mmss}）タップで調理確認済みにする">
+              <div class="iso-slot-node steaming ${dicePosClass} ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-confirm-batch="${batch.batchId}" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="蒸し中（残り${mmss}）タップで調理確認済みにする">
                 <div class="slot-time-countdown">${remainingMin}分</div>
                 <div class="slot-prod-name">${shortName}</div>
                 <div class="slot-badge-sub">蒸し中</div>
@@ -1425,14 +1420,14 @@ function renderIsometricSteamerStage(tiersSnap) {
         <div class="iso-tier-block ${hasReady ? 'has-ready' : ''}">
           <div class="iso-tier-header">
             <div class="iso-tier-badge">
-              <span>第${tier.tierNumber}段</span>
-              <span class="iso-tier-status-text">(${totalOccupied}/${capacity}個 ${hasReady ? '⚡販売可能あり' : totalOccupied > 0 ? '♨️蒸し中' : '空き'})</span>
+              <span>第${tier.tierNumber}段 (四角せいろ)</span>
+              <span class="iso-tier-status-text">(${totalOccupied}/${capacity}個 ${hasReady ? '⚡販売可能' : totalOccupied > 0 ? '♨️蒸し中' : '空き'})</span>
             </div>
             <button type="button" class="btn-fill-tier" data-iso-fill-tier="${tier.tierNumber}">
               ＋ 空き枠を一括投入
             </button>
           </div>
-          <div class="iso-slots-ring">
+          <div class="dice-5-grid">
             ${slotsHtml.join('')}
           </div>
         </div>

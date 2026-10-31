@@ -519,15 +519,41 @@ body {
   perspective: 900px;
 }
 
-/* せいろ各段の立体コンテナ */
+/* せいろ各段の立体コンテナ（四角い角セイロ・斜め55度立体木枠） */
 .iso-tier-block {
   position: relative;
-  background: radial-gradient(ellipse at 50% 50%, rgba(35, 20, 16, 0.95), rgba(14, 8, 7, 0.98));
-  border: 2px solid var(--line);
-  border-radius: 120px / 48px; /* 斜め55度から見下ろした円筒の上端オーバル */
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.9), inset 0 2px 8px rgba(255, 196, 64, 0.25);
-  padding: 16px 20px;
+  background: radial-gradient(circle at 50% 30%, rgba(38, 22, 18, 0.95), rgba(16, 9, 8, 0.98));
+  border: 3px solid rgba(255, 196, 64, 0.4);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.95), inset 0 2px 6px rgba(255, 196, 64, 0.3);
+  padding: 14px 16px 18px;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 440px;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 木枠の角の金物補強ブラケット */
+.iso-tier-block::before,
+.iso-tier-block::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--gold);
+  pointer-events: none;
+}
+.iso-tier-block::before {
+  top: 6px;
+  left: 6px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.iso-tier-block::after {
+  bottom: 6px;
+  right: 6px;
+  border-left: 0;
+  border-top: 0;
 }
 
 .iso-tier-block:hover {
@@ -536,7 +562,7 @@ body {
 
 .iso-tier-block.has-ready {
   border-color: var(--green);
-  box-shadow: 0 0 20px rgba(109, 255, 160, 0.3), inset 0 0 10px rgba(109, 255, 160, 0.2);
+  box-shadow: 0 0 22px rgba(109, 255, 160, 0.35), inset 0 0 12px rgba(109, 255, 160, 0.25);
 }
 
 /* 段ヘッダー行 */
@@ -544,12 +570,14 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  padding: 0 12px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 8px;
 }
 
 .iso-tier-badge {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   color: var(--gold);
   letter-spacing: 0.08em;
@@ -565,12 +593,12 @@ body {
 }
 
 .btn-fill-tier {
-  padding: 4px 10px;
-  background: rgba(255, 196, 64, 0.1);
+  padding: 5px 12px;
+  background: rgba(255, 196, 64, 0.12);
   border: 1px solid var(--line-strong);
   color: var(--gold-soft);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
   clip-path: var(--cut-sm);
   transition: all 0.15s ease;
@@ -581,28 +609,33 @@ body {
   color: #07090c;
 }
 
-/* 斜め55度 円形せいろ内の5個スロット配置（五角形レイアウト） */
-.iso-slots-ring {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 10px;
-  flex-wrap: nowrap;
+/* サイコロの5の目（⚄）グリッドレイアウト */
+.dice-5-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  width: 100%;
+  max-width: 320px;
+  height: 250px;
+  margin: 10px auto 4px;
+  background: rgba(255, 196, 64, 0.03);
+  border: 1px dashed rgba(255, 196, 64, 0.18);
+  border-radius: 8px;
+  padding: 10px;
+  place-items: center;
 }
 
-@media (max-width: 580px) {
-  .iso-slots-ring {
-    gap: 6px;
-    padding: 8px 4px;
-  }
-}
+/* サイコロ5の目の各位置（左上、右上、中央、左下、右下） */
+.dice-pos-1 { grid-column: 1; grid-row: 1; } /* 左上 */
+.dice-pos-2 { grid-column: 3; grid-row: 1; } /* 右上 */
+.dice-pos-3 { grid-column: 2; grid-row: 2; } /* 中央 */
+.dice-pos-4 { grid-column: 1; grid-row: 3; } /* 左下 */
+.dice-pos-5 { grid-column: 3; grid-row: 3; } /* 右下 */
 
-/* 豚まん1個スロット */
+/* 豚まん1個スロット（サイコロの目） */
 .iso-slot-node {
-  flex: 1;
-  max-width: 96px;
-  height: 94px;
+  width: 72px;
+  height: 72px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -611,7 +644,7 @@ body {
   text-align: center;
   cursor: pointer;
   user-select: none;
-  border-radius: 50% / 44%; /* 斜めパースの丸み */
+  border-radius: 50%;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -621,20 +654,20 @@ body {
 
 /* 1. 空き枠（タップで即蒸し開始） */
 .iso-slot-node.empty {
-  border: 2px dashed rgba(255, 196, 64, 0.4);
-  background: rgba(255, 196, 64, 0.02);
+  border: 2px dashed rgba(255, 196, 64, 0.5);
+  background: rgba(255, 196, 64, 0.04);
   color: var(--gold-soft);
 }
 
 .iso-slot-node.empty:hover {
   border-color: var(--gold);
-  background: rgba(255, 196, 64, 0.12);
-  box-shadow: 0 0 14px rgba(255, 196, 64, 0.3);
+  background: rgba(255, 196, 64, 0.16);
+  box-shadow: 0 0 16px rgba(255, 196, 64, 0.4);
 }
 
 .iso-slot-node.empty .slot-icon {
-  font-size: 24px;
-  opacity: 0.6;
+  font-size: 20px;
+  opacity: 0.8;
 }
 
 .iso-slot-node.empty .slot-action-label {
@@ -647,30 +680,30 @@ body {
 /* 2. 蒸し中（40分カウントダウン・深紅/オレンジ発光） */
 .iso-slot-node.steaming {
   border: 2px solid var(--red);
-  background: radial-gradient(circle at 50% 40%, rgba(255, 52, 72, 0.3), rgba(200, 16, 46, 0.15));
-  box-shadow: 0 0 18px rgba(255, 52, 72, 0.45);
+  background: radial-gradient(circle at 50% 40%, rgba(255, 52, 72, 0.35), rgba(200, 16, 46, 0.2));
+  box-shadow: 0 0 18px rgba(255, 52, 72, 0.5);
   animation: steamBreathe 2.4s infinite ease-in-out;
 }
 
 @keyframes steamBreathe {
-  0%, 100% { box-shadow: 0 0 14px rgba(255, 52, 72, 0.35); }
-  50% { box-shadow: 0 0 24px rgba(255, 52, 72, 0.65), inset 0 0 10px rgba(255, 52, 72, 0.3); }
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 52, 72, 0.4); }
+  50% { box-shadow: 0 0 24px rgba(255, 52, 72, 0.75), inset 0 0 10px rgba(255, 52, 72, 0.3); }
 }
 
 .iso-slot-node.steaming .slot-time-countdown {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
-  text-shadow: 0 0 8px rgba(255, 52, 72, 0.8);
+  text-shadow: 0 0 8px rgba(255, 52, 72, 0.9);
 }
 
 .iso-slot-node.steaming .slot-prod-name {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #ffd8dc;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .iso-slot-node.steaming .slot-badge-sub {
@@ -682,18 +715,18 @@ body {
 /* 3. 蒸し上がり完了（エメラルドグリーン発光！タップで消去） */
 .iso-slot-node.ready {
   border: 2px solid var(--green);
-  background: radial-gradient(circle at 50% 40%, rgba(109, 255, 160, 0.38), rgba(0, 180, 90, 0.2));
-  box-shadow: 0 0 22px rgba(109, 255, 160, 0.6);
+  background: radial-gradient(circle at 50% 40%, rgba(109, 255, 160, 0.4), rgba(0, 180, 90, 0.25));
+  box-shadow: 0 0 24px rgba(109, 255, 160, 0.7);
   animation: readyPulse 1.8s infinite ease-in-out;
 }
 
 @keyframes readyPulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(109, 255, 160, 0.45); }
-  50% { box-shadow: 0 0 30px rgba(109, 255, 160, 0.85), inset 0 0 12px rgba(109, 255, 160, 0.4); }
+  0%, 100% { box-shadow: 0 0 16px rgba(109, 255, 160, 0.5); }
+  50% { box-shadow: 0 0 32px rgba(109, 255, 160, 0.9), inset 0 0 12px rgba(109, 255, 160, 0.4); }
 }
 
 .iso-slot-node.ready .slot-ready-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
   color: #ffffff;
   letter-spacing: 0.04em;
@@ -704,7 +737,7 @@ body {
   font-size: 10px;
   font-weight: 800;
   color: var(--green);
-  margin-top: 2px;
+  margin-top: 1px;
   animation: blinkText 1.2s infinite ease-in-out;
 }
 
@@ -1330,41 +1363,7 @@ select {
   margin-top: 6px;
 }
 
-/* ロール別無効化制御 */
-body.no-role-order section#tab-pos button,
-body.no-role-order section#tab-pos input,
-body.no-role-order section#tab-pos select,
-body.no-role-order #toggle-event-service,
-body.no-role-order #btn-confirm-expense,
-body.no-role-order #btn-clear-expense,
-body.no-role-order #expense-amount-input {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-body.no-role-kitchen section#tab-steamer button,
-body.no-role-kitchen section#tab-steamer input,
-body.no-role-kitchen section#tab-steamer select,
-body.no-role-kitchen section#tab-steamer .xray-slot,
-body.no-role-kitchen #btn-record-waste,
-body.no-role-kitchen #waste-product,
-body.no-role-kitchen #waste-reason,
-body.no-role-kitchen #waste-qty,
-body.no-role-kitchen #waste-batch-id {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-body.role-viewer main button,
-body.role-viewer main input,
-body.role-viewer main select,
-body.role-viewer .xray-slot,
-body.role-viewer #btn-seed-demo,
-body.role-viewer #btn-reset-all,
-body.role-viewer #btn-apply-snapshot {
-  opacity: 0.4;
-  pointer-events: none;
-}
+/* 1人運用・直感オペレーションのため全端末で常時タップ可能 */
 
 /* レスポンシブ調整 */
 @media (max-width: 680px) {
