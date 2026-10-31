@@ -99,13 +99,22 @@
     });
   }
 
+  // 共有接続の状態（この画面を開いてから GAS と通信できたか）: 'checking' | 'ok' | 'error'
+  var link = 'checking';
+
+  function statusLabel(online, queued) {
+    if (!cfg.gasUrl) return { text: '端末内のみ', cls: 'local' };
+    if (!online) return { text: '圏外' + (queued ? ' ・ 未送信' + queued : ''), cls: 'offline' };
+    if (link === 'ok') return { text: '共有接続済み' + (queued ? ' ・ 未送信' + queued : ''), cls: 'online' };
+    if (link === 'error') return { text: '再接続中' + (queued ? ' ・ 未送信' + queued : ''), cls: 'offline' };
+    return { text: '接続確認中…', cls: 'local' };
+  }
+
   function renderStatus() {
     var net = $('net');
-    var q = sync.getQueue().length;
-    var online = navigator.onLine !== false;
-    net.className = 'net ' + (online ? 'online' : 'offline');
-    if (!cfg.gasUrl) net.textContent = '端末内のみ';
-    else net.textContent = (online ? 'オンライン' : '圏外') + (q ? ' ・ 未送信' + q : '');
+    var s = statusLabel(navigator.onLine !== false, sync.getQueue().length);
+    net.className = 'net ' + s.cls;
+    net.textContent = s.text;
     var m = sync.getMeta();
     var foot = m.lastSyncAt ? '最終同期 ' + new Date(m.lastSyncAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '未同期';
     if (m.lastError) foot += ' ・ ' + m.lastError;
@@ -166,7 +175,11 @@
       toast('記録しました：' + rec.productName + ' ×' + rec.quantity);
       setQty(1);
       renderAll();
-      sync.flush().then(renderAll);
+      sync.flush().then(function (r) {
+        if (r && r.sent > 0) link = 'ok';
+        else if (r && r.error) link = 'error';
+        renderAll();
+      });
     } catch (e) {
       toast(e.message, true);
     } finally {
@@ -177,7 +190,10 @@
 
   function syncNow() {
     renderStatus();
-    return sync.flush().then(function () { return sync.pull(); }).catch(function () { /* 圏外時は次回 */ }).then(renderAll);
+    if (!cfg.gasUrl) return Promise.resolve().then(renderAll);
+    return sync.flush().then(function () { return sync.pull(); })
+      .then(function () { link = 'ok'; }, function () { link = 'error'; /* 圏外時は次回 */ })
+      .then(renderAll);
   }
 
   // ---- 初期化 ----

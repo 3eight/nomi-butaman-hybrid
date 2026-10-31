@@ -22,7 +22,7 @@ function makeEl(tag) {
   return el;
 }
 
-function boot(storage, hash = '') {
+function boot(storage, hash = '', opts = {}) {
   const ids = {};
   const document = {
     hidden: false,
@@ -35,18 +35,19 @@ function boot(storage, hash = '') {
   const location = { protocol: 'file:', hash };
   const history = { replaceState: (a, b, h) => { location.hash = h; } };
   const window = {
-    NOMI_CONFIG: undefined, localStorage: storage, fetch: () => Promise.reject(new Error('offline')),
+    NOMI_CONFIG: undefined, localStorage: storage, fetch: opts.fetch || (() => Promise.reject(new Error('offline'))),
     addEventListener() {}, history, scrollTo() {}
   };
   const ctx = {
     window, document, console, JSON, Date, Math, Promise, Error, TypeError, Object, Array, String, Number,
-    navigator: { onLine: false }, location, history, crypto: globalThis.crypto,
+    navigator: { onLine: opts.online !== false }, location, history, crypto: globalThis.crypto,
     setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval() {}
   };
   window.window = window;
   vm.createContext(ctx);
   for (const f of ['config.js', 'core.js', 'sync.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(DOCS, f), 'utf8'), ctx, { filename: f });
+    if (f === 'config.js' && opts.config) Object.assign(window.NOMI_CONFIG, opts.config);
   }
   return { ids, timers, ctx, location };
 }
@@ -64,7 +65,28 @@ test('初期表示: データ不足なら「学習中」を最大表示し、商
   assert.equal(ids['product-field'].hidden, true);
   assert.equal(ids['method-options'].children.length, 3);
   assert.equal(ids['quick-qty'].children.length, 4);
+  assert.equal(ids['net'].textContent, '接続確認中…');
+});
+
+const tick = () => new Promise(r => setImmediate(r));
+
+test('接続表示: GAS未設定なら「端末内のみ」', () => {
+  const { ids } = boot(memoryStorage(), '', { config: { gasUrl: '' } });
   assert.equal(ids['net'].textContent, '端末内のみ');
+});
+
+test('接続表示: GASと通信できたら「共有接続済み」', async () => {
+  const fetch = (url, o) => Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, records: [] }) });
+  const { ids } = boot(memoryStorage(), '', { fetch, config: { gasUrl: 'https://example.test/exec' } });
+  for (let i = 0; i < 10; i++) await tick();
+  assert.equal(ids['net'].textContent, '共有接続済み');
+  assert.match(ids['foot'].textContent, /最終同期/);
+});
+
+test('接続表示: 通信に失敗したら「再接続中」', async () => {
+  const { ids } = boot(memoryStorage(), '', { config: { gasUrl: 'https://example.test/exec' } });
+  for (let i = 0; i < 10; i++) await tick();
+  assert.equal(ids['net'].textContent, '再接続中');
 });
 
 test('受渡完了: 数量を選んで記録すると最近の受渡に「未送信」で並ぶ', () => {
@@ -126,4 +148,10 @@ test('キッチン画面: 会計で記録すると直近30分・今日の受渡�
   ids['submit'].listeners.click[0]();
   assert.equal(ids['stat-recent'].textContent, '2個');
   assert.equal(ids['stat-today'].textContent, '2個');
+});
+
+test('接続表示: 端末が圏外なら「圏外」と未送信件数', () => {
+  const { ids } = boot(memoryStorage(), '', { online: false, config: { gasUrl: 'https://example.test/exec' } });
+  ids['submit'].listeners.click[0]();
+  assert.equal(ids['net'].textContent, '圏外 ・ 未送信1');
 });

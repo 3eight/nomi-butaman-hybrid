@@ -245,3 +245,17 @@ test('rebuildKnowledge: 販売ナレッジシートを作り直す', () => {
   env.post({ command: 'rebuildKnowledge' });
   assert.equal(k.rows.length, 3);
 });
+
+test('setup: シートを作成し、ナレッジ再集計トリガーを重複なく登録する', () => {
+  const env = createEnv();
+  const triggers = [];
+  env.ctx.ScriptApp = {
+    getProjectTriggers: () => triggers.map(h => ({ getHandlerFunction: () => h })),
+    newTrigger: h => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create: () => triggers.push(h) }) }) }) })
+  };
+  assert.equal(env.ctx.setup(), 'セットアップ完了');
+  env.ctx.setup();
+  assert.deepEqual(triggers, ['rebuildKnowledgeTrigger']);
+  assert.equal(env.sheets['受渡記録'].rows[0][0], '記録ID');
+  assert.equal(env.sheets['販売ナレッジ'].rows[0][0], '曜日');
+});

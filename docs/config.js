@@ -4,7 +4,7 @@
  */
 window.NOMI_CONFIG = {
   // GAS ウェブアプリの URL（https://script.google.com/macros/s/XXXX/exec）。空なら端末内のみで動作
-  gasUrl: '',
+  gasUrl: 'https://script.google.com/macros/s/AKfycbwb_a0_MIFrxU8oc7T9tWH3WJFtMvoaZ4qbTgBDIyr9trjSQFvvnlQohfSQscHBCoLQ/exec',
   // GAS のスクリプトプロパティ SHARED_KEY と同じ値（いたずら防止用。公開されるので秘密ではありません）
   sharedKey: '',
 

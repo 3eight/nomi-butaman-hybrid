@@ -176,6 +176,22 @@ function rebuildKnowledgeTrigger() {
   return cmdRebuildKnowledge();
 }
 
+/**
+ * 初回セットアップ: スクリプトエディタでこの関数を1回実行し、権限を承認してください。
+ * シートの作成と、販売ナレッジの毎晩3時の自動再集計トリガー登録を行います（何度実行しても安全）。
+ */
+function setup() {
+  getSheet_(SHEET_RECORDS, RECORD_HEADERS);
+  getSheet_(SHEET_KNOWLEDGE, KNOWLEDGE_HEADERS);
+  var exists = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === 'rebuildKnowledgeTrigger';
+  });
+  if (!exists) {
+    ScriptApp.newTrigger('rebuildKnowledgeTrigger').timeBased().everyDays(1).atHour(3).create();
+  }
+  return 'セットアップ完了';
+}
+
 /* ---------------- シート操作 ---------------- */
 
 function getSpreadsheet_() {

@@ -48,6 +48,7 @@ body {
 }
 .net.online { color: var(--ok); border-color: #2c6b45; }
 .net.offline { color: var(--warn); border-color: #7a5a14; }
+.net.local { color: var(--muted); }
 
 /* ---- HUD（最大表示） ---- */
 .hud {
