@@ -229,7 +229,7 @@
 
 
     <!-- ======================================================== -->
-    <!-- 画面②：ムシ管理画面（せいろ透視・段別タイマー・途中1個追加・揚げ在庫） -->
+    <!-- 画面②：ムシ管理画面（斜め55度立体ワイヤーフレーム・直感タイマー） -->
     <!-- ======================================================== -->
     <section id="tab-steamer" class="tab-panel">
       <!-- 蒸し助言ミニHUD -->
@@ -238,9 +238,9 @@
       <div class="panel-steamer">
         <div class="panel-header">
           <div>
-            <h2>② SEIRO X-RAY WIREFRAME // せいろ透視・段別タイマー</h2>
+            <h2>② SEIRO X-RAY WIREFRAME 3D // 斜め55度 せいろ透視タイマー</h2>
             <p class="panel-caption">
-              実物1段ごとの固定番号（1〜4 / 5〜8 / 9〜12案）と一致。満了で自動的に段を空にしません（予定時刻到来と調理確認済みを区別）。空き枠タップで<strong>途中1個追加</strong>（独立タイマー）。
+              豚まんをタップしてタイマー開始（40分）。蒸し上がったら緑色に変わり、もう一度タップすると取り出し完了で消えます。
             </p>
           </div>
           <div class="quick-fry-stock" id="fry-stock-bar">
@@ -248,24 +248,53 @@
           </div>
         </div>
 
-        <!-- 一括せいろ投入フォーム -->
-        <div class="steamer-load-bar">
-          <label>段選択: <select id="load-tier-select" aria-label="投入段番号"></select></label>
-          <label>商品: 
-            <select id="load-product-select" aria-label="投入商品">
-              <option value="butaman">豚まん (蒸し)</option>
-              <option value="anbataman">あんバタまん (蒸し)</option>
-            </select>
-          </label>
-          <label>個数: <input type="number" id="load-qty-input" value="5" min="1" max="6" aria-label="投入個数" class="num-sm" /></label>
-          <button type="button" id="btn-load-batch" class="btn btn-cyan">段へ投入 (40分タイマー開始)</button>
-          <button type="button" id="btn-load-midstream-1" class="btn btn-outline" title="ピーク時に選択段の空きスロットへ冷凍品を1個だけ途中追加します">
-            ＋ 途中1個追加 (独立タイマー)
-          </button>
+        <!-- 投入商品の選択 & せいろセット切替 -->
+        <div class="steamer-top-controls">
+          <div class="steamer-item-select-bar">
+            <span class="control-label">投入商品:</span>
+            <button type="button" class="btn btn-outline btn-item-toggle active" data-steamer-item="butaman">🐷 豚まん (40分)</button>
+            <button type="button" class="btn btn-outline btn-item-toggle" data-steamer-item="anbataman">🧈 あんバタ (40分)</button>
+          </div>
+
+          <!-- せいろセット切替タブ（通常1: 1〜4段 / 通常2: 5〜8段 / 電気: 9〜12段） -->
+          <div class="steamer-set-tabs" role="tablist">
+            <button type="button" class="set-tab-btn active" data-steamer-set="regular-set-1">
+              <span>♨️ 通常1 (1〜4段)</span>
+            </button>
+            <button type="button" class="set-tab-btn" data-steamer-set="regular-set-2">
+              <span>♨️ 通常2 (5〜8段)</span>
+            </button>
+            <button type="button" class="set-tab-btn" data-steamer-set="electric-set-1">
+              <span>⚡ 電気 (9〜12段)</span>
+            </button>
+          </div>
         </div>
 
-        <!-- 3セット（通常1: 1〜4段, 通常2: 5〜8段, 電気: 9〜12段）の透視ワイヤーフレーム -->
-        <div id="steamer-sets-container" class="steamer-sets-grid"></div>
+        <!-- 斜め55度アイソメトリックせいろ 3Dワイヤーフレーム表示コンテナ -->
+        <div id="isometric-steamer-stage" class="isometric-steamer-stage">
+          <!-- JSで斜め55度せいろと5個スロットをダイナミック描画 -->
+        </div>
+
+        <!-- 下位互換用の一括フォーム（テスト・補助用、目立たず配置） -->
+        <details class="advanced-steamer-drawer" style="margin-top:16px;">
+          <summary class="tiny-note" style="cursor:pointer; color:var(--muted);">▼ フォーム入力・段一括投入オプションを表示</summary>
+          <div class="steamer-load-bar" style="margin-top:8px;">
+            <label>段選択: <select id="load-tier-select" aria-label="投入段番号"></select></label>
+            <label>商品: 
+              <select id="load-product-select" aria-label="投入商品">
+                <option value="butaman">豚まん (蒸し)</option>
+                <option value="anbataman">あんバタまん (蒸し)</option>
+              </select>
+            </label>
+            <label>個数: <input type="number" id="load-qty-input" value="5" min="1" max="6" aria-label="投入個数" class="num-sm" /></label>
+            <button type="button" id="btn-load-batch" class="btn btn-cyan btn-sm">段へ投入 (40分タイマー開始)</button>
+            <button type="button" id="btn-load-midstream-1" class="btn btn-outline btn-sm" title="ピーク時に選択段の空きスロットへ冷凍品を1個だけ途中追加します">
+              ＋ 途中1個追加 (独立タイマー)
+            </button>
+          </div>
+          <!-- 従来のセットコンテナも下位互換用に保持 -->
+          <div id="steamer-sets-container" class="steamer-sets-grid hidden" hidden></div>
+        </details>
       </div>
     </section>
 

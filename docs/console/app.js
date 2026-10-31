@@ -70,6 +70,10 @@ let formState = {
   customerNote: '',
 };
 
+// 蒸し器 3Dアイソメトリック操作の状態
+let activeSteamerSetId = 'regular-set-1';
+let activeSteamerProductId = 'butaman';
+
 let suppressSuccessToastUntil = 0;
 
 function showToast(msg, isError = false) {
@@ -1045,6 +1049,28 @@ function initStaticControls() {
       showToast(`データの読み込みに失敗しました: ${err.message}`, true);
     }
   });
+
+  // 蒸し器 投入商品トグル (豚まん / あんバタ)
+  document.querySelectorAll('[data-steamer-item]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeSteamerProductId = btn.getAttribute('data-steamer-item');
+      document.querySelectorAll('[data-steamer-item]').forEach((b) => {
+        b.classList.toggle('active', b === btn);
+      });
+      showToast(`投入商品を「${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'}」に切り替えました`);
+    });
+  });
+
+  // せいろセット切替タブ (通常1 / 通常2 / 電気)
+  document.querySelectorAll('[data-steamer-set]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeSteamerSetId = btn.getAttribute('data-steamer-set');
+      document.querySelectorAll('[data-steamer-set]').forEach((b) => {
+        b.classList.toggle('active', b === btn);
+      });
+      renderSteamerWireframe();
+    });
+  });
 }
 
 function resetOrderForm() {
@@ -1242,68 +1268,244 @@ function renderFryStockBar() {
  * 中身が透けて見えるせいろのワイヤーフレーム風・近未来UIの描画
  */
 function renderSteamerWireframe() {
-  const container = document.getElementById('steamer-sets-container');
   const tiersSnap = store.getSteamerTiersSnapshot(new Date().toISOString());
 
-  const sets = [
-    {
-      setId: 'regular-set-1',
-      title: '通常せいろ セットA (固定番号 1〜4段 / 5個×4段)',
-      tiers: tiersSnap.filter((t) => t.setId === 'regular-set-1'),
-    },
-    {
-      setId: 'regular-set-2',
-      title: '通常せいろ セットB (固定番号 5〜8段 / 5個×4段)',
-      tiers: tiersSnap.filter((t) => t.setId === 'regular-set-2'),
-    },
-    {
-      setId: 'electric-set-1',
-      title: '電気せいろ (固定番号 9〜12段案 / 6個×4段 ※容量未確認)',
-      tiers: tiersSnap.filter((t) => t.setId === 'electric-set-1'),
-    },
-  ];
+  // 1. 斜め55度アイソメトリックせいろ 3Dワイヤーフレームを描画
+  renderIsometricSteamerStage(tiersSnap);
 
-  container.innerHTML = sets
-    .map(
-      (set) => `
-      <div class="steamer-set-column">
-        <div class="steamer-set-title">${set.title}</div>
-        ${set.tiers.map((tier) => renderSingleXrayTier(tier)).join('')}
-      </div>
-    `
-    )
+  // 2. 従来のセットコンテナ（下位互換・テスト検証用）
+  const container = document.getElementById('steamer-sets-container');
+  if (container) {
+    const sets = [
+      {
+        setId: 'regular-set-1',
+        title: '通常せいろ セットA (固定番号 1〜4段 / 5個×4段)',
+        tiers: tiersSnap.filter((t) => t.setId === 'regular-set-1'),
+      },
+      {
+        setId: 'regular-set-2',
+        title: '通常せいろ セットB (固定番号 5〜8段 / 5個×4段)',
+        tiers: tiersSnap.filter((t) => t.setId === 'regular-set-2'),
+      },
+      {
+        setId: 'electric-set-1',
+        title: '電気せいろ (固定番号 9〜12段案 / 6個×4段 ※容量未確認)',
+        tiers: tiersSnap.filter((t) => t.setId === 'electric-set-1'),
+      },
+    ];
+
+    container.innerHTML = sets
+      .map(
+        (set) => `
+        <div class="steamer-set-column">
+          <div class="steamer-set-title">${set.title}</div>
+          ${set.tiers.map((tier) => renderSingleXrayTier(tier)).join('')}
+        </div>
+      `
+      )
+      .join('');
+
+    // イベントバインド: バッチの「調理確認済みにする」ボタン（キッチン係）
+    container.querySelectorAll('[data-confirm-batch]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const batchId = btn.getAttribute('data-confirm-batch');
+        try {
+          store.confirmBatchCookingReady(batchId);
+          persistAndSync('kitchen');
+          showToast(`バッチ ${batchId} を「調理確認済み（引渡し可）」にしました`);
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      });
+    });
+
+    // イベントバインド: 空きスロットタップで「この段に1個途中追加」（キッチン係）
+    container.querySelectorAll('[data-empty-slot-tier]').forEach((slotEl) => {
+      slotEl.addEventListener('click', () => {
+        const tierNumber = Number(slotEl.getAttribute('data-empty-slot-tier'));
+        const slotPos = Number(slotEl.getAttribute('data-slot-pos'));
+        const productId = document.getElementById('load-product-select')?.value || 'butaman';
+        try {
+          store.loadSteamerBatch({
+            tierNumber,
+            productId,
+            qty: 1,
+            slotPositions: [slotPos],
+            note: `スロット#${slotPos}へ途中1個追加`,
+          });
+          persistAndSync('kitchen');
+          showToast(
+            `${tierNumber}段目の位置#${slotPos}へ ${
+              productId === 'butaman' ? '豚まん' : 'あんバタ'
+            } を1個途中追加しました（独立40分タイマー開始）`
+          );
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      });
+    });
+  }
+}
+
+/**
+ * 斜め55度アイソメトリック せいろ3Dワイヤーフレーム描画
+ * - 各段を斜め上から見た円形せいろオーバルとしてスタック
+ * - 1段に5個のスロットが配置
+ * - 空き枠タップ ➔ 40分タイマースタート
+ * - 蒸し上がり ➔ 鮮やかな緑色に変化
+ * - 蒸し上がりタップ ➔ 取り出し完了で消去（空き枠に戻る）
+ */
+function renderIsometricSteamerStage(tiersSnap) {
+  const stage = document.getElementById('isometric-steamer-stage');
+  if (!stage) return;
+
+  const currentTiers = tiersSnap.filter((t) => t.setId === activeSteamerSetId);
+
+  stage.innerHTML = currentTiers
+    .map((tier) => {
+      const slotMap = new Map();
+      let hasReady = false;
+      let totalOccupied = 0;
+
+      for (const batch of tier.batches) {
+        if (batch.remainingQty <= 0) continue;
+        const isBatchReady = batch.state === 'CONFIRMED_READY' || batch.isReadyTimePassed;
+        if (isBatchReady) hasReady = true;
+
+        for (let i = 0; i < batch.remainingQty; i++) {
+          const pos = batch.slotPositions[i] || i + 1;
+          slotMap.set(pos, { batch, isBatchReady });
+          totalOccupied += 1;
+        }
+      }
+
+      // 1段に5個のスロットを生成
+      const slotsHtml = [];
+      const capacity = tier.capacity || 5;
+
+      for (let s = 1; s <= capacity; s++) {
+        const item = slotMap.get(s);
+        if (!item) {
+          // 空きスロット: ワンタップで投入開始
+          slotsHtml.push(`
+            <div class="iso-slot-node empty" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="タップで${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'}を投入 (40分タイマー開始)">
+              <div class="slot-icon">➕</div>
+              <div class="slot-action-label">蒸す</div>
+            </div>
+          `);
+        } else {
+          const { batch, isBatchReady } = item;
+          const shortName = batch.productId === 'butaman' ? '豚まん' : 'あんバタ';
+
+          if (isBatchReady) {
+            // 蒸し上がり完了: エメラルドグリーン発光！タップで消去（取り出し）
+            slotsHtml.push(`
+              <div class="iso-slot-node ready ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-remove-tier="${tier.tierNumber}" data-iso-remove-slot="${s}" title="蒸し上がり完了！タップすると取り出し完了で消えます">
+                <div class="slot-ready-title">READY</div>
+                <div style="font-size:12px; font-weight:800; color:#fff;">${shortName}</div>
+                <div class="slot-tap-remove">タップで取出し✕</div>
+              </div>
+            `);
+          } else {
+            // 蒸し中: 赤/オレンジ発光、残り分数を大きく表示！
+            const remainingMin = Math.max(1, Math.ceil(batch.remainingSeconds / 60));
+            const mmss = formatMMSS(batch.remainingSeconds);
+            slotsHtml.push(`
+              <div class="iso-slot-node steaming ${batch.isMidStreamAddition ? 'midstream-added' : ''}" data-iso-confirm-batch="${batch.batchId}" data-iso-tier="${tier.tierNumber}" data-iso-slot="${s}" title="蒸し中（残り${mmss}）タップで調理確認済みにする">
+                <div class="slot-time-countdown">${remainingMin}分</div>
+                <div class="slot-prod-name">${shortName}</div>
+                <div class="slot-badge-sub">蒸し中</div>
+              </div>
+            `);
+          }
+        }
+      }
+
+      return `
+        <div class="iso-tier-block ${hasReady ? 'has-ready' : ''}">
+          <div class="iso-tier-header">
+            <div class="iso-tier-badge">
+              <span>第${tier.tierNumber}段</span>
+              <span class="iso-tier-status-text">(${totalOccupied}/${capacity}個 ${hasReady ? '⚡販売可能あり' : totalOccupied > 0 ? '♨️蒸し中' : '空き'})</span>
+            </div>
+            <button type="button" class="btn-fill-tier" data-iso-fill-tier="${tier.tierNumber}">
+              ＋ 空き枠を一括投入
+            </button>
+          </div>
+          <div class="iso-slots-ring">
+            ${slotsHtml.join('')}
+          </div>
+        </div>
+      `;
+    })
     .join('');
 
-  // イベントバインド: バッチの「調理確認済みにする」ボタン（キッチン係）
-  container.querySelectorAll('[data-confirm-batch]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const batchId = btn.getAttribute('data-confirm-batch');
+  // イベントバインド: 空きスロットタップ ➔ 即座にタイマー開始！
+  stage.querySelectorAll('[data-iso-tier][data-iso-slot]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const tierNumber = Number(el.getAttribute('data-iso-tier'));
+      const slotPos = Number(el.getAttribute('data-iso-slot'));
       try {
-        store.confirmBatchCookingReady(batchId);
+        store.loadSteamerBatch({
+          tierNumber,
+          productId: activeSteamerProductId,
+          qty: 1,
+          slotPositions: [slotPos],
+          note: `スロット#${slotPos}へ投入`,
+        });
         persistAndSync('kitchen');
-        showToast(`バッチ ${batchId} を「調理確認済み（引渡し可）」にしました`);
+        showToast(`第${tierNumber}段の位置#${slotPos}に ${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'} を投入しました（40分タイマー開始）`);
       } catch (err) {
         showToast(err.message, true);
       }
     });
   });
 
-  // イベントバインド: 空きスロットタップで「この段に1個途中追加」（キッチン係）
-  container.querySelectorAll('[data-empty-slot-tier]').forEach((slotEl) => {
-    slotEl.addEventListener('click', () => {
-      const tierNumber = Number(slotEl.getAttribute('data-empty-slot-tier'));
-      const slotPos = Number(slotEl.getAttribute('data-slot-pos'));
-      const productId = document.getElementById('load-product-select').value || 'butaman';
+  // イベントバインド: 蒸し上がりスロットタップ ➔ 取り出し完了で消去！
+  stage.querySelectorAll('[data-iso-remove-tier][data-iso-remove-slot]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const tierNumber = Number(el.getAttribute('data-iso-remove-tier'));
+      const slotPos = Number(el.getAttribute('data-iso-remove-slot'));
       try {
-        store.loadSteamerBatch({
-          tierNumber,
-          productId,
-          qty: 1,
-          slotPositions: [slotPos],
-          note: `スロット#${slotPos}へ途中1個追加`,
-        });
-        persistAndSync('kitchen');
-        showToast(`${tierNumber}段目の位置#${slotPos}へ ${productId === 'butaman' ? '豚まん' : 'あんバタ'} を1個途中追加しました（独立40分タイマー開始）`);
+        const res = store.removeSlotItem({ tierNumber, slotIndex: slotPos });
+        if (res.removed) {
+          persistAndSync('kitchen');
+          showToast(`第${tierNumber}段から蒸し上がり豚まんを取り出しました（空き枠に戻りました）`);
+        }
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    });
+  });
+
+  // イベントバインド: 蒸し中スロットタップ ➔ 調理確認済みにする
+  stage.querySelectorAll('[data-iso-confirm-batch]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const batchId = el.getAttribute('data-iso-confirm-batch');
+      if (window.confirm('この豚まんを「調理確認済み（蒸し上がり完了）」にしますか？')) {
+        try {
+          store.confirmBatchCookingReady(batchId);
+          persistAndSync('kitchen');
+          showToast('調理確認済みにしました（緑色に変わり、引渡し可能になりました）');
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      }
+    });
+  });
+
+  // イベントバインド: 段一括投入ボタン
+  stage.querySelectorAll('[data-iso-fill-tier]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tierNumber = Number(btn.getAttribute('data-iso-fill-tier'));
+      try {
+        const batch = store.loadTierFull({ tierNumber, productId: activeSteamerProductId });
+        if (batch) {
+          persistAndSync('kitchen');
+          showToast(`第${tierNumber}段の空き枠に ${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'} を一括投入しました（40分タイマー開始）`);
+        } else {
+          showToast(`第${tierNumber}段はすでに満杯です`, true);
+        }
       } catch (err) {
         showToast(err.message, true);
       }

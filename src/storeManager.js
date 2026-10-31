@@ -394,6 +394,41 @@ export class StoreManager {
     return structuredClone(batch);
   }
 
+  /**
+   * スロット直接タップ用：指定段・スロットから豚まんを取り出して空き枠にする
+   */
+  removeSlotItem({ tierNumber, slotIndex, updatedAt = new Date().toISOString() }) {
+    const tier = this._getTierOrThrow(tierNumber);
+    for (let i = 0; i < tier.batches.length; i++) {
+      const b = tier.batches[i];
+      if (b.remainingQty > 0 && Array.isArray(b.slotPositions) && b.slotPositions.includes(slotIndex)) {
+        b.remainingQty -= 1;
+        b.slotPositions = b.slotPositions.filter((p) => p !== slotIndex);
+        this._rebalanceReservations();
+        this._bumpRevision(updatedAt);
+        return { removed: true, batchId: b.batchId, remainingQty: b.remainingQty, state: b.state };
+      }
+    }
+    return { removed: false };
+  }
+
+  /**
+   * 段への一括投入（空いている全スロットに投入）
+   */
+  loadTierFull({ tierNumber, productId = 'butaman', durationMinutes = 40, startedAt = new Date().toISOString() }) {
+    const tier = this._getTierOrThrow(tierNumber);
+    const currentOccupancy = this.getTierCurrentOccupancy(tierNumber);
+    const needed = tier.capacity - currentOccupancy;
+    if (needed <= 0) return null;
+    return this.loadSteamerBatch({
+      tierNumber,
+      productId,
+      qty: needed,
+      durationMinutes,
+      startedAt,
+    });
+  }
+
   addNonSteamerReadyStock(productId, cookingMethod, qty) {
     if (qty <= 0) throw new Error('追加数量は1以上である必要があります');
     const skuKey = makeSkuKey(productId, cookingMethod);
