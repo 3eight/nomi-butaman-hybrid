@@ -140,6 +140,28 @@ export class StoreManager {
         updatedAt: null,
       }
     );
+
+    // デフォルトで定義されている tiers の欠落・容量更新があれば安全に補完・同期（バージョンアップ対応）
+    const defaultCfg = createDefaultEventConfig();
+    if (!this.eventConfig.tiers) this.eventConfig.tiers = [];
+    for (const defTier of defaultCfg.tiers) {
+      const idx = this.eventConfig.tiers.findIndex((t) => t.tierNumber === defTier.tierNumber);
+      if (idx === -1) {
+        this.eventConfig.tiers.push(structuredClone(defTier));
+      } else if (defTier.setId === 'electric-set-1') {
+        this.eventConfig.tiers[idx].capacity = defTier.capacity;
+        this.eventConfig.tiers[idx].capacityVerified = defTier.capacityVerified;
+      }
+
+      if (!this.tiers.has(defTier.tierNumber)) {
+        this.tiers.set(defTier.tierNumber, { ...structuredClone(defTier), batches: [] });
+      } else if (defTier.setId === 'electric-set-1') {
+        const t = this.tiers.get(defTier.tierNumber);
+        t.capacity = defTier.capacity;
+        t.capacityVerified = defTier.capacityVerified;
+      }
+    }
+
     this._rebalanceReservations();
     return this;
   }
