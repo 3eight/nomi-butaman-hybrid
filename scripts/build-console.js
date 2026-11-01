@@ -6,20 +6,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
+function stripModuleSyntax(code) {
+  return code
+    // 複数行・単一行の import 文を除去
+    .replace(/import\s+(?:\{[\s\S]*?\}|[\w*\s,]+)\s+from\s*['"][^'"]+['"];?/g, '')
+    .replace(/import\s*['"][^'"]+['"];?/g, '')
+    // export 文の除去
+    .replace(/^export\s+(?:default\s+)?/gm, '');
+}
+
 function buildConsoleBundle() {
-  const modelsCode = fs.readFileSync(path.join(ROOT_DIR, 'src', 'models.js'), 'utf-8')
-    .replace(/^export\s+/gm, '');
-
-  const serviceCalcCode = fs.readFileSync(path.join(ROOT_DIR, 'src', 'serviceCalculator.js'), 'utf-8')
-    .replace(/^import\s+.*?;/gm, '')
-    .replace(/^export\s+/gm, '');
-
-  const storeMgrCode = fs.readFileSync(path.join(ROOT_DIR, 'src', 'storeManager.js'), 'utf-8')
-    .replace(/^import\s+.*?;/gm, '')
-    .replace(/^export\s+/gm, '');
-
-  const appJsRaw = fs.readFileSync(path.join(ROOT_DIR, 'public', 'app.js'), 'utf-8')
-    .replace(/import\s*\{[\s\S]*?\}\s*from\s*['"].*?['"];?/m, '');
+  const modelsCode = stripModuleSyntax(fs.readFileSync(path.join(ROOT_DIR, 'src', 'models.js'), 'utf-8'));
+  const serviceCalcCode = stripModuleSyntax(fs.readFileSync(path.join(ROOT_DIR, 'src', 'serviceCalculator.js'), 'utf-8'));
+  const storeMgrCode = stripModuleSyntax(fs.readFileSync(path.join(ROOT_DIR, 'src', 'storeManager.js'), 'utf-8'));
+  const appJsCode = stripModuleSyntax(fs.readFileSync(path.join(ROOT_DIR, 'public', 'app.js'), 'utf-8'));
 
   const bundle = `/**
  * 能美豚饅 統合管理システム - GitHub Pages 自己完結バンドル
@@ -36,8 +36,14 @@ ${serviceCalcCode}
 ${storeMgrCode}
 
 // === 4. App Controller ===
-${appJsRaw}
+${appJsCode}
 `;
+
+  // 安全性検証: import/export が残っていないか検査
+  const remainingImport = bundle.match(/import\s+[\s\S]*?from/);
+  if (remainingImport) {
+    throw new Error(`[BUILD ERROR] 残留 import 文が検出されました: ${remainingImport[0]}`);
+  }
 
   const consoleDir = path.join(ROOT_DIR, 'docs', 'console');
   if (!fs.existsSync(consoleDir)) {

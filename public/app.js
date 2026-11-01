@@ -523,6 +523,9 @@ function switchTab(tabName) {
   }
 }
 const switchMobileTab = switchTab;
+if (typeof window !== 'undefined') {
+  window.switchTab = switchTab;
+}
 
 function loadSettingsIntoForm() {
   const plan = store.businessPlan || {};

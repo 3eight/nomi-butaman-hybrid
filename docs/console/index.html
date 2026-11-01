@@ -30,19 +30,19 @@
 
     <!-- 4大画面切り替えメインタブバー（初期画面: 設定・在庫準備） -->
     <nav class="main-tabs-nav" aria-label="メイン画面ナビゲーション">
-      <button type="button" class="tab-btn active" data-tab-target="settings">
+      <button type="button" class="tab-btn active" data-tab-target="settings" onclick="window.switchTab && window.switchTab('settings')">
         <span class="tab-icon">⚙️</span>
         <span class="tab-title">設定</span>
       </button>
-      <button type="button" class="tab-btn" data-tab-target="steamer">
+      <button type="button" class="tab-btn" data-tab-target="steamer" onclick="window.switchTab && window.switchTab('steamer')">
         <span class="tab-icon">♨️</span>
         <span class="tab-title">ムシ</span>
       </button>
-      <button type="button" class="tab-btn" data-tab-target="pos">
+      <button type="button" class="tab-btn" data-tab-target="pos" onclick="window.switchTab && window.switchTab('pos')">
         <span class="tab-icon">🧾</span>
         <span class="tab-title">会計</span>
       </button>
-      <button type="button" class="tab-btn" data-tab-target="analytics">
+      <button type="button" class="tab-btn" data-tab-target="analytics" onclick="window.switchTab && window.switchTab('analytics')">
         <span class="tab-icon">📊</span>
         <span class="tab-title">データ</span>
       </button>

@@ -1,6 +1,6 @@
 /**
  * 能美豚饅 統合管理システム - GitHub Pages 自己完結バンドル
- * 生成日時: 2026-11-01T13:40:00.424Z
+ * 生成日時: 2026-11-01T13:48:59.389Z
  */
 
 // === 1. Models ===
@@ -368,17 +368,7 @@ function evaluateOrderItemsAndService({
  * 能美豚饅 店舗マネージャー (v0.3 - 4画面タブ＆目標管理対応)
  */
 
-import {
-  BatchState,
-  CookingMethod,
-  FulfillmentStatus,
-  PaymentStatus,
-  ExpenseStatus,
-  WasteReason,
-  AdviceLevel,
-  makeSkuKey,
-  createDefaultEventConfig,
-} from './models.js';
+
 
 
 class StoreManager {
@@ -2382,6 +2372,9 @@ function switchTab(tabName) {
   }
 }
 const switchMobileTab = switchTab;
+if (typeof window !== 'undefined') {
+  window.switchTab = switchTab;
+}
 
 function loadSettingsIntoForm() {
   const plan = store.businessPlan || {};
