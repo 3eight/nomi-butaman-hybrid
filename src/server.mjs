@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { StoreManager } from './storeManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,12 +75,15 @@ export function createAppServer({
     ? path.join(path.dirname(persistFilePath), 'server-meta.json')
     : null;
 
-  // 永続化ファイルからの初期復元
+  // 永続化ファイルからの初期復元（StoreManager を通して安全に最新スキーマへマイグレーション）
   if (persistFilePath && !sharedState) {
     try {
       if (fs.existsSync(persistFilePath)) {
         const raw = fs.readFileSync(persistFilePath, 'utf-8');
-        sharedState = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        const mgr = new StoreManager();
+        mgr.importSnapshot(parsed);
+        sharedState = mgr.exportSnapshot();
       }
     } catch {
       // 読み込み失敗時は null のまま開始
