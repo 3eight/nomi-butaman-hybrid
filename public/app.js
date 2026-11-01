@@ -745,7 +745,87 @@ function seedInitialDemoState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store.exportSnapshot()));
 }
 
+async function copyAppUrl() {
+  let urlToCopy = window.location.href;
+  try {
+    const res = await fetch('/api/network-info');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.tunnelUrl && data.tunnelUrl.startsWith('http')) {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          urlToCopy = data.tunnelUrl;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(urlToCopy);
+      showToast(`📋 リンクをコピーしました: ${urlToCopy}`);
+      return;
+    }
+  } catch (err) {
+    console.warn('Clipboard writeText failed', err);
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = urlToCopy;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) {
+      showToast(`📋 リンクをコピーしました: ${urlToCopy}`);
+      return;
+    }
+  } catch {
+    // ignore
+  }
+
+  window.prompt('以下のリンクをコピーしてください:', urlToCopy);
+}
+
+async function refreshTunnelUrlDisplay() {
+  const displayEl = document.getElementById('settings-tunnel-url-display');
+  if (!displayEl) return;
+  let targetUrl = window.location.href;
+  try {
+    const res = await fetch('/api/network-info');
+    if (res.ok) {
+      const info = await res.json();
+      if (info.tunnelUrl && info.tunnelUrl.startsWith('http')) {
+        targetUrl = info.tunnelUrl;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  displayEl.textContent = targetUrl;
+}
+
 function initStaticControls() {
+  // リンクコピーボタン（ヘッダー & 設定画面）
+  const copyBtnTop = document.getElementById('btn-copy-url-top');
+  if (copyBtnTop) {
+    copyBtnTop.addEventListener('click', () => copyAppUrl());
+  }
+  const copyBtnSettings = document.getElementById('btn-copy-url-settings');
+  if (copyBtnSettings) {
+    copyBtnSettings.addEventListener('click', () => copyAppUrl());
+  }
+  const urlDisplay = document.getElementById('settings-tunnel-url-display');
+  if (urlDisplay) {
+    urlDisplay.style.cursor = 'pointer';
+    urlDisplay.title = 'タップしてリンクをコピー';
+    urlDisplay.addEventListener('click', () => copyAppUrl());
+  }
+  refreshTunnelUrlDisplay();
   // 段セレクトボックス初期化
   const tierSel = document.getElementById('load-tier-select');
   tierSel.innerHTML = '';

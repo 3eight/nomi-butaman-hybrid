@@ -227,10 +227,21 @@ export function createAppServer({
 
     // 2. スマホ接続案内・LAN IP情報取得 API
     if (req.method === 'GET' && pathname === '/api/network-info') {
+      let tunnelUrl = null;
+      try {
+        const tunnelPath = path.join(ROOT_DIR, '.data', 'tunnel-url.txt');
+        if (fs.existsSync(tunnelPath)) {
+          tunnelUrl = fs.readFileSync(tunnelPath, 'utf-8').trim();
+        }
+      } catch {
+        // ignore
+      }
+
       sendJson(res, 200, {
         ok: true,
         port,
         localhostUrl: `http://127.0.0.1:${port}`,
+        tunnelUrl,
         lanUrls: getLanAddresses(port),
         connectedDevicesCount: sseClients.size,
         syncVerificationStatus: 'UNVERIFIED',
