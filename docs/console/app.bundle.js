@@ -1,6 +1,6 @@
 /**
  * 能美豚饅 統合管理システム - GitHub Pages 自己完結バンドル
- * 生成日時: 2026-11-01T07:47:13.868Z
+ * 生成日時: 2026-11-01T07:51:40.925Z
  */
 
 // === 1. Models ===
@@ -2685,6 +2685,29 @@ function initStaticControls() {
     urlDisplay.addEventListener('click', () => copyAppUrl());
   }
   refreshTunnelUrlDisplay();
+
+  // 表示中せいろの全空き枠一括投入ボタン
+  const btnFillActive = document.getElementById('btn-fill-active-set');
+  if (btnFillActive) {
+    btnFillActive.addEventListener('click', () => {
+      const currentTiers = store.getSteamerTiersSnapshot().filter((t) => t.setId === activeSteamerSetId);
+      let totalLoaded = 0;
+      for (const t of currentTiers) {
+        const batch = store.loadTierFull({
+          tierNumber: t.tierNumber,
+          productId: activeSteamerProductId,
+        });
+        if (batch) totalLoaded += batch.initialQty;
+      }
+      if (totalLoaded > 0) {
+        persistAndSync('kitchen');
+        showToast(`表示中のせいろへ ${activeSteamerProductId === 'butaman' ? '豚まん' : 'あんバタ'} を ${totalLoaded}個 一括投入しました（40分タイマー開始）`);
+      } else {
+        showToast('表示中のせいろに空き枠はありません');
+      }
+    });
+  }
+
   // 段セレクトボックス初期化
   const tierSel = document.getElementById('load-tier-select');
   tierSel.innerHTML = '';

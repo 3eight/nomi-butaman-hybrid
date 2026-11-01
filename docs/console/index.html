@@ -14,61 +14,47 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-active-tab="settings">
-  <!-- トップヘッダー：シンプルで押しやすいメインナビゲーションとステータス -->
+  <!-- トップヘッダー：シンプルでスタイリッシュなタイトルと共有ボタンのみ -->
   <header class="hud-header">
     <div class="brand-row">
       <div class="brand-title-wrap">
-        <span class="cyber-badge">NOMI-BUTAMAN SYSTEM</span>
-        <h1>能美豚饅 蒸し・会計・注文管理</h1>
+        <h1>能美豚饅</h1>
+        <span class="cyber-badge">PRO</span>
       </div>
       <div class="meta-pills">
         <button type="button" id="btn-copy-url-top" class="btn btn-primary btn-sm">
           📋 リンクをコピー
         </button>
-        <span id="sync-status-pill" class="pill pill-warn" title="複数スマホ同期方式・通信切断時・画面非表示中の通知は現場未検証として扱っています">
-          同期確認中…
-        </span>
-        <span id="role-status-pill" class="pill pill-warn">担当確認中…</span>
-        <span id="connected-devices-pill" class="pill pill-info">接続端末: 1台</span>
       </div>
     </div>
 
     <!-- 4大画面切り替えメインタブバー（初期画面: 設定・在庫準備） -->
     <nav class="main-tabs-nav" aria-label="メイン画面ナビゲーション">
       <button type="button" class="tab-btn active" data-tab-target="settings">
-        <span class="tab-num">①</span>
         <span class="tab-icon">⚙️</span>
-        <span class="tab-title">設定・在庫準備</span>
+        <span class="tab-title">設定</span>
       </button>
       <button type="button" class="tab-btn" data-tab-target="steamer">
-        <span class="tab-num">②</span>
         <span class="tab-icon">♨️</span>
-        <span class="tab-title">ムシ管理</span>
+        <span class="tab-title">ムシ</span>
       </button>
       <button type="button" class="tab-btn" data-tab-target="pos">
-        <span class="tab-num">③</span>
         <span class="tab-icon">🧾</span>
-        <span class="tab-title">注文・会計</span>
+        <span class="tab-title">会計</span>
       </button>
       <button type="button" class="tab-btn" data-tab-target="analytics">
-        <span class="tab-num">④</span>
         <span class="tab-icon">📊</span>
-        <span class="tab-title">データ・予想 (%表示)</span>
+        <span class="tab-title">データ</span>
       </button>
     </nav>
 
-    <!-- 端末担当ロール選択（1人運用なら両方、分担なら注文係/キッチン係） -->
-    <div class="role-bar">
-      <span class="role-bar-label">このスマホの操作担当:</span>
-      <div class="role-btn-group">
-        <button type="button" id="btn-role-both" class="btn btn-outline btn-sm active" title="1人で運用する時にムシと会計の両方を担当します">👤 1人運用 (両方)</button>
-        <button type="button" id="btn-role-order" class="btn btn-outline btn-sm">🧾 注文係</button>
-        <button type="button" id="btn-role-kitchen" class="btn btn-outline btn-sm">♨️ キッチン係</button>
-        <button type="button" id="btn-role-viewer" class="btn btn-outline btn-sm">👀 閲覧のみ</button>
-      </div>
-      <button type="button" id="btn-open-mobile-connect" class="btn btn-cyan btn-sm">
-        📱 他スマホ接続 (QR/URL)
-      </button>
+    <!-- 端末担当ロール選択（自動設定済み・下位互換用に保持しつつ画面から非表示） -->
+    <div class="role-bar" style="display:none;" hidden>
+      <button type="button" id="btn-role-both">1人運用</button>
+      <button type="button" id="btn-role-order">注文係</button>
+      <button type="button" id="btn-role-kitchen">キッチン係</button>
+      <button type="button" id="btn-role-viewer">閲覧のみ</button>
+      <button type="button" id="btn-open-mobile-connect">接続</button>
     </div>
   </header>
 
@@ -237,13 +223,14 @@
             </div>
           </div>
 
-          <!-- デモ・リセット補助操作 -->
-          <div class="card-sub-box full-width" style="background: rgba(255,255,255,0.02);">
-            <div class="inline-controls">
+          <!-- デモ・リセット補助操作（折りたたみ） -->
+          <details class="card-sub-box full-width" style="margin-top:10px;">
+            <summary class="tiny-note" style="cursor:pointer; color:var(--text-tertiary); text-align:center;">▼ 開発・テスト用オプション（デモ投入・リセット）</summary>
+            <div class="inline-controls" style="margin-top:10px; justify-content:center;">
               <button type="button" id="btn-seed-demo" class="btn btn-outline btn-sm">デモデータ投入</button>
               <button type="button" id="btn-reset-all" class="btn btn-danger btn-sm">全リセット</button>
             </div>
-          </div>
+          </details>
         </div>
       </div>
     </section>
@@ -257,49 +244,49 @@
       <div class="advice-hud" id="advice-hud"></div>
 
       <div class="panel-steamer">
-        <div class="panel-header">
+        <div class="panel-header" style="margin-bottom:12px; padding-bottom:8px;">
           <div>
-            <h2>② SEIRO X-RAY WIREFRAME 3D // 斜め55度 せいろ透視タイマー</h2>
-            <p class="panel-caption">
-              豚まんをタップしてタイマー開始（40分）。蒸し上がったら緑色に変わり、もう一度タップすると取り出し完了で消えます。
-            </p>
+            <h2>② ムシ管理 <span style="opacity:0.25; font-size:10px; font-weight:normal;">SEIRO X-RAY WIREFRAME 3D</span></h2>
           </div>
-          <div class="quick-fry-stock" id="fry-stock-bar">
-            <!-- 揚げ在庫操作バー -->
-          </div>
+          <button type="button" id="btn-fill-active-set" class="btn btn-primary btn-sm" title="表示中のせいろの全空き枠へ一括投入してタイマー開始">
+            ＋ 全空き枠を一括投入
+          </button>
         </div>
 
-        <!-- 投入商品の選択 & せいろセット切替 -->
-        <div class="steamer-top-controls">
+        <!-- 3つの主要操作コントロール（商品選択 / せいろ切替 / 一括投入） -->
+        <div class="steamer-top-controls" style="margin-bottom:16px;">
+          <!-- コントロール1: 商品選択 -->
           <div class="steamer-item-select-bar">
-            <span class="control-label">投入商品:</span>
-            <button type="button" class="btn btn-outline btn-item-toggle active" data-steamer-item="butaman">🐷 豚まん (40分)</button>
-            <button type="button" class="btn btn-outline btn-item-toggle" data-steamer-item="anbataman">🧈 あんバタ (40分)</button>
+            <button type="button" class="btn btn-outline btn-item-toggle active" data-steamer-item="butaman">🐷 豚まん</button>
+            <button type="button" class="btn btn-outline btn-item-toggle" data-steamer-item="anbataman">🧈 あんバタ</button>
           </div>
 
-          <!-- せいろセット切替タブ（通常1: 1〜4段 / 通常2: 5〜8段 / 電気: 9〜13段・各6個） -->
+          <!-- コントロール2: せいろセット切替 -->
           <div class="steamer-set-tabs" role="tablist">
             <button type="button" class="set-tab-btn active" data-steamer-set="regular-set-1">
-              <span>♨️ 通常1 (1〜4段)</span>
+              <span>♨️ 通常1</span>
             </button>
             <button type="button" class="set-tab-btn" data-steamer-set="regular-set-2">
-              <span>♨️ 通常2 (5〜8段)</span>
+              <span>♨️ 通常2</span>
             </button>
             <button type="button" class="set-tab-btn" data-steamer-set="electric-set-1">
-              <span>⚡ 電気 (9〜13段・各6個)</span>
+              <span>⚡ 電気</span>
             </button>
           </div>
         </div>
 
-        <!-- 斜め55度アイソメトリックせいろ 3Dワイヤーフレーム表示コンテナ -->
+        <!-- 四角せいろ ＆ サイコロ配置 豚まんステージ -->
         <div id="isometric-steamer-stage" class="isometric-steamer-stage">
-          <!-- JSで斜め55度せいろと5個スロットをダイナミック描画 -->
+          <!-- JSで四角せいろとサイコロ配置スロットを描画 -->
         </div>
 
-        <!-- 下位互換用の一括フォーム（テスト・補助用、目立たず配置） -->
-        <details class="advanced-steamer-drawer" style="margin-top:16px;">
-          <summary class="tiny-note" style="cursor:pointer; color:var(--muted);">▼ フォーム入力・段一括投入オプションを表示</summary>
-          <div class="steamer-load-bar" style="margin-top:8px;">
+        <!-- 詳細操作・揚げ在庫（必要な時だけ開く折りたたみ） -->
+        <details class="advanced-steamer-drawer" style="margin-top:20px;">
+          <summary class="tiny-note" style="cursor:pointer; color:var(--text-tertiary); text-align:center;">▼ 揚げ在庫・詳細オプション</summary>
+          <div class="quick-fry-stock" id="fry-stock-bar" style="margin-top:10px;">
+            <!-- 揚げ在庫操作バー -->
+          </div>
+          <div class="steamer-load-bar" style="margin-top:10px;">
             <label>段選択: <select id="load-tier-select" aria-label="投入段番号"></select></label>
             <label>商品: 
               <select id="load-product-select" aria-label="投入商品">
@@ -313,7 +300,6 @@
               ＋ 途中1個追加 (独立タイマー)
             </button>
           </div>
-          <!-- 従来のセットコンテナも下位互換用に保持 -->
           <div id="steamer-sets-container" class="steamer-sets-grid hidden" hidden></div>
         </details>
       </div>
@@ -328,63 +314,65 @@
         <!-- 左側：新規注文受付 & 変更モード -->
         <div class="panel-order-form">
           <div class="panel-header">
-            <h2 id="order-form-title">③ ORDER CONSOLE // 新規注文受付</h2>
+            <h2 id="order-form-title">③ 注文・会計</h2>
             <span id="editing-order-badge" class="pill pill-accent hidden">変更モード中</span>
           </div>
 
           <div class="order-builder">
-            <h3>1. 有料商品の選択（商品 × 蒸し/揚げ）</h3>
             <div id="paid-items-grid" class="sku-counter-grid"></div>
 
-            <!-- 5個ごと1個無料サービス枠パネル -->
-            <div id="service-box" class="service-box">
-              <div class="service-header">
-                <div>
-                  <strong>本部負担サービス枠（有料まん5個ごと1個）</strong>
-                  <div id="service-entitlement-text" class="service-sub">有料まん合計: 0個 → 無料枠: 0個</div>
-                </div>
-                <label class="toggle-label">
-                  <input type="checkbox" id="chk-decline-all-service" />
-                  <span>この注文で無料分を全辞退</span>
-                </label>
-              </div>
-              <p class="tiny-note">※無料分も「まんの種類×蒸し/揚げ」を選択可能。辞退分（未選択分）は在庫減算・本部負担サービス費用に計上しません。</p>
-              <div id="free-items-grid" class="sku-counter-grid free-grid"></div>
-            </div>
-
-            <!-- 任意の客の特徴タグ（数タップ選択・必須にしない） -->
-            <div class="customer-features-box">
-              <h3>2. 客の特徴タグ（任意・数タップ選択・未選択可）</h3>
-              <div id="feature-chips-container" class="chips-wrap"></div>
-              <input type="text" id="input-customer-note" class="text-input" placeholder="任意メモ（例：青い傘、呼び出し番号札など ※未入力可）" />
-            </div>
-
-            <!-- 会計・決済記録選択（先払い標準・後払い可） -->
-            <div class="payment-box" id="new-order-payment-box">
-              <h3>3. 会計・支払タイミング（受渡状態とは独立）</h3>
-              <div class="payment-timing-row">
-                <label><input type="radio" name="payTiming" value="PREPAID" checked /> 先払い（標準・即時入金記録）</label>
-                <label><input type="radio" name="payTiming" value="POSTPAID" /> 後払い（未払いで受付）</label>
-              </div>
-              <div class="payment-method-row" id="prepaid-method-row">
-                <span>記録手段（決済代行なし）:</span>
-                <label><input type="radio" name="payMethod" value="CASH" checked /> 現金</label>
-                <label><input type="radio" name="payMethod" value="PAYPAY" /> PayPay</label>
-                <label><input type="radio" name="payMethod" value="TOCHITSUKA" /> トチツーカ</label>
-              </div>
-            </div>
-
-            <div class="order-summary-bar">
+            <div class="order-summary-bar" style="margin-top:16px;">
               <div>
-                <div class="total-price-label">お会計合計（有料分）</div>
+                <div class="total-price-label">お会計合計</div>
                 <div id="order-total-amount" class="total-price-value">¥0</div>
-                <div id="order-service-summary" class="tiny-note">本部負担サービス計上: ¥0 (辞退: 0個)</div>
+                <div id="order-service-summary" class="tiny-note"></div>
               </div>
               <div class="form-btn-group">
                 <button type="button" id="btn-cancel-edit" class="btn btn-outline hidden">変更キャンセル</button>
                 <button type="button" id="btn-submit-order" class="btn btn-primary btn-lg">注文を確定する</button>
               </div>
             </div>
+
+            <!-- 詳細設定（無料サービス枠・特徴タグ・支払い方法）※通常は自動計算のため折りたたみ -->
+            <details class="order-details-drawer" style="margin-top:16px;">
+              <summary class="tiny-note" style="cursor:pointer; color:var(--text-tertiary); text-align:center;">▼ 詳細オプション（無料枠・支払方法・メモ）</summary>
+              
+              <!-- 5個ごと1個無料サービス枠パネル -->
+              <div id="service-box" class="service-box" style="margin-top:12px;">
+                <div class="service-header">
+                  <div>
+                    <strong>本部負担サービス枠（5個毎1個無料）</strong>
+                    <div id="service-entitlement-text" class="service-sub">有料まん合計: 0個 → 無料枠: 0個</div>
+                  </div>
+                  <label class="toggle-label">
+                    <input type="checkbox" id="chk-decline-all-service" />
+                    <span>無料分を全辞退</span>
+                  </label>
+                </div>
+                <div id="free-items-grid" class="sku-counter-grid free-grid" style="margin-top:8px;"></div>
+              </div>
+
+              <!-- 任意の客の特徴タグ -->
+              <div class="customer-features-box" style="margin-top:12px;">
+                <h3>客の特徴タグ（任意メモ）</h3>
+                <div id="feature-chips-container" class="chips-wrap"></div>
+                <input type="text" id="input-customer-note" class="text-input" placeholder="任意メモ（例：青い傘、番号札など）" style="margin-top:6px; width:100%;" />
+              </div>
+
+              <!-- 会計・決済記録選択 -->
+              <div class="payment-box" id="new-order-payment-box" style="margin-top:12px;">
+                <h3>支払タイミング</h3>
+                <div class="payment-timing-row">
+                  <label><input type="radio" name="payTiming" value="PREPAID" checked /> 先払い</label>
+                  <label><input type="radio" name="payTiming" value="POSTPAID" /> 後払い</label>
+                </div>
+                <div class="payment-method-row" id="prepaid-method-row" style="margin-top:6px;">
+                  <label><input type="radio" name="payMethod" value="CASH" checked /> 現金</label>
+                  <label><input type="radio" name="payMethod" value="PAYPAY" /> PayPay</label>
+                  <label><input type="radio" name="payMethod" value="TOCHITSUKA" /> トチツーカ</label>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -392,37 +380,33 @@
         <div class="panel-queue">
           <div class="panel-header">
             <div>
-              <h2>ACTIVE QUEUE &amp; PICK GUIDE // 待ち注文・お渡し</h2>
-              <p class="panel-caption">
-                「お渡し完了」で案内された段から自動減算（通常は段入力不要）。案内表示だけでは入金/返金完了になりません。
-              </p>
+              <h2>待ち注文・お渡し</h2>
             </div>
-          </div>
-
-          <!-- 直前注文の「段取り出し最少訂正（付け替え）」バー -->
-          <div class="correction-bar">
-            <div class="correction-title">
-              <strong>違う段から取った場合の最少訂正（直前注文等の段付け替え）</strong>
-              <span>※指示と違う段から取った時だけ実行してください（元段を戻し、実段を減算して履歴記録）</span>
-            </div>
-            <div class="correction-controls">
-              <select id="corr-order-select" aria-label="訂正対象注文"></select>
-              <label>元段 <input type="number" id="corr-from-tier" min="1" max="12" value="1" class="num-sm" /></label>
-              <span>→</span>
-              <label>実段 <input type="number" id="corr-to-tier" min="1" max="12" value="2" class="num-sm" /></label>
-              <label>個数 <input type="number" id="corr-qty" min="1" max="6" value="1" class="num-sm" /></label>
-              <button type="button" id="btn-exec-correction" class="btn btn-warn btn-sm">段を付け替え訂正</button>
-            </div>
-            <div id="correction-history-line" class="tiny-note">訂正履歴: 0件</div>
           </div>
 
           <!-- 待ち注文カードリスト -->
           <div id="waiting-orders-list" class="orders-list"></div>
 
-          <!-- 完了済み・全注文履歴折りたたみ -->
-          <details class="completed-orders-drawer">
-            <summary>完了済み・全注文履歴を表示 (<span id="all-orders-count">0</span>件)</summary>
-            <div id="all-orders-list" class="orders-list compact"></div>
+          <!-- 直前注文の「段取り出し最少訂正」および完了履歴（折りたたみ） -->
+          <details class="completed-orders-drawer" style="margin-top:16px;">
+            <summary class="tiny-note" style="cursor:pointer; color:var(--text-tertiary); text-align:center;">▼ 段の付け替え訂正・全完了履歴 (<span id="all-orders-count">0</span>件)</summary>
+            
+            <div class="correction-bar" style="margin-top:10px;">
+              <div class="correction-title">
+                <strong>違う段から取った場合の訂正</strong>
+              </div>
+              <div class="correction-controls">
+                <select id="corr-order-select" aria-label="訂正対象注文"></select>
+                <label>元段 <input type="number" id="corr-from-tier" min="1" max="13" value="1" class="num-sm" /></label>
+                <span>→</span>
+                <label>実段 <input type="number" id="corr-to-tier" min="1" max="13" value="2" class="num-sm" /></label>
+                <label>個数 <input type="number" id="corr-qty" min="1" max="6" value="1" class="num-sm" /></label>
+                <button type="button" id="btn-exec-correction" class="btn btn-warn btn-sm">訂正実行</button>
+              </div>
+              <div id="correction-history-line" class="tiny-note" style="margin-top:4px;">訂正履歴: 0件</div>
+            </div>
+
+            <div id="all-orders-list" class="orders-list compact" style="margin-top:10px;"></div>
           </details>
         </div>
       </div>
@@ -449,44 +433,47 @@
           <!-- JSで自動描画（%プログレスバー、予想個数、在庫残数） -->
         </div>
 
-        <!-- 下段：廃棄管理 ＆ 経費確定 ＆ 精算サマリ -->
-        <div class="analytics-sub-grid">
-          <!-- 廃棄記録 -->
-          <div class="footer-card">
-            <h3>🗑️ 廃棄（ロス）記録（本部負担 vs 出店者過失250円/個）</h3>
-            <div class="inline-controls">
-              <select id="waste-product">
-                <option value="butaman">豚まん</option>
-                <option value="anbataman">あんバタまん</option>
-                <option value="potato">ポテト</option>
-              </select>
-              <select id="waste-reason">
-                <option value="DEFECT_HQ">商品不良 ＝ 本部負担 (0円)</option>
-                <option value="NEGLIGENCE_VENDOR">蒸しすぎ等過失 ＝ 出店者負担 (250円/個)</option>
-              </select>
-              <input type="number" id="waste-qty" value="1" min="1" max="20" class="num-sm" />
-              <input type="text" id="waste-batch-id" placeholder="任意: BATCH-0001" class="text-sm" />
-              <button type="button" id="btn-record-waste" class="btn btn-outline btn-sm">廃棄を記録</button>
+        <!-- 下段：廃棄管理 ＆ 経費確定 ＆ 精算サマリ（折りたたみ） -->
+        <details class="analytics-drawer" style="margin-top:20px;">
+          <summary class="tiny-note" style="cursor:pointer; color:var(--text-tertiary); text-align:center;">▼ 経費入力・廃棄ロス記録・精算サマリ詳細</summary>
+          
+          <div class="analytics-sub-grid" style="margin-top:14px;">
+            <!-- 廃棄記録 -->
+            <div class="card-sub-box">
+              <h3>🗑️ 廃棄（ロス）記録</h3>
+              <div class="inline-controls">
+                <select id="waste-product">
+                  <option value="butaman">豚まん</option>
+                  <option value="anbataman">あんバタまん</option>
+                  <option value="potato">ポテト</option>
+                </select>
+                <select id="waste-reason">
+                  <option value="DEFECT_HQ">商品不良 (本部負担 ¥0)</option>
+                  <option value="NEGLIGENCE_VENDOR">過失 (出店者 ¥250/個)</option>
+                </select>
+                <input type="number" id="waste-qty" value="1" min="1" max="20" class="num-sm" />
+                <button type="button" id="btn-record-waste" class="btn btn-outline btn-sm">廃棄記録</button>
+              </div>
+              <div id="waste-summary-text" class="tiny-note" style="margin-top:8px;"></div>
             </div>
-            <div id="waste-summary-text" class="tiny-note" style="margin-top:8px;"></div>
+
+            <!-- 経費確定 -->
+            <div class="card-sub-box">
+              <h3>💰 経費入力</h3>
+              <div class="inline-controls">
+                <input type="number" id="expense-amount-input" placeholder="未入力" min="0" step="10" class="text-sm" />
+                <button type="button" id="btn-confirm-expense" class="btn btn-primary btn-sm">金額を確定</button>
+                <button type="button" id="btn-clear-expense" class="btn btn-outline btn-sm">未入力に戻す</button>
+              </div>
+              <div id="expense-summary-text" class="tiny-note" style="margin-top:8px;"></div>
+            </div>
           </div>
 
-          <!-- 経費確定 -->
-          <div class="footer-card">
-            <h3>💰 経費入力（任意・未入力を0円確定にしない）</h3>
-            <div class="inline-controls">
-              <input type="number" id="expense-amount-input" placeholder="未入力 (null)" min="0" step="10" class="text-sm" />
-              <button type="button" id="btn-confirm-expense" class="btn btn-outline btn-sm">金額を確定 (0円確定も可)</button>
-              <button type="button" id="btn-clear-expense" class="btn btn-outline btn-sm">未入力状態に戻す</button>
-            </div>
-            <div id="expense-summary-text" class="tiny-note" style="margin-top:8px;"></div>
+          <!-- 精算・配分サマリカード -->
+          <div class="card-sub-box settlement-card" id="settlement-summary-box" style="margin-top:14px;">
+            <!-- 精算サマリ表示 -->
           </div>
-        </div>
-
-        <!-- 精算・配分サマリカード -->
-        <div class="footer-card settlement-card" id="settlement-summary-box" style="margin-top:16px;">
-          <!-- 精算サマリ表示 -->
-        </div>
+        </details>
       </div>
     </section>
 

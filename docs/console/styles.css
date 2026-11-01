@@ -873,16 +873,101 @@ select:focus {
 /* ==========================================================================
    会計・注文画面 & データ管理画面
    ========================================================================== */
-.pos-layout {
+.pos-dual-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
 }
 
-.orders-column {
+.sku-counter-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.sku-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--apple-card-elevated);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  transition: all 0.2s ease;
+}
+
+.sku-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.sku-info {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 2px;
+}
+
+.sku-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.sku-price {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--apple-border-subtle);
+}
+
+.qty-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  min-width: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-summary-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(10, 132, 255, 0.08);
+  border: 1px solid rgba(10, 132, 255, 0.25);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.total-price-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.total-price-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .order-card {
