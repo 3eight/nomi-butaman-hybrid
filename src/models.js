@@ -51,7 +51,7 @@ export const ExpenseStatus = Object.freeze({
 
 export const SteamerType = Object.freeze({
   REGULAR: 'REGULAR',   // 通常せいろ（5個×4段×2セット）
-  ELECTRIC: 'ELECTRIC', // 電気せいろ（6個×4段 ※容量未確認）
+  ELECTRIC: 'ELECTRIC', // 電気せいろ（6個×5段＝30個）
 });
 
 export const AdviceLevel = Object.freeze({
@@ -85,7 +85,7 @@ export function parseSkuKey(skuKey) {
  * デフォルトのイベント初期設定を生成する
  * - 豚まん500円/50%は過去条件で再確認が必要（unverified: true）
  * - ポテト配分は本部50%・出店者50%、原価未精査（costUnverified: true）
- * - 電気せいろ6個×4段は容量未確認（capacityVerified: false）
+ * - 電気せいろは5段で6個ずつ（計30個）確定（capacityVerified: true）
  */
 export function createDefaultEventConfig(overrides = {}) {
   const defaultCatalog = [
@@ -128,7 +128,7 @@ export function createDefaultEventConfig(overrides = {}) {
   ];
 
   // 通常せいろ: 5個×4段×2セット (段番号案 1〜4, 5〜8)
-  // 電気せいろ: 6個×4段×1セット (段番号案 9〜12, 容量未確認)
+  // 電気せいろ: 6個×5段×1セット (段番号案 9〜13, 確定)
   const defaultTiers = [
     // セット1 (1〜4)
     { tierNumber: 1, setId: 'regular-set-1', steamerType: SteamerType.REGULAR, capacity: 5, capacityVerified: true, numberingProvisional: true },
@@ -140,11 +140,12 @@ export function createDefaultEventConfig(overrides = {}) {
     { tierNumber: 6, setId: 'regular-set-2', steamerType: SteamerType.REGULAR, capacity: 5, capacityVerified: true, numberingProvisional: true },
     { tierNumber: 7, setId: 'regular-set-2', steamerType: SteamerType.REGULAR, capacity: 5, capacityVerified: true, numberingProvisional: true },
     { tierNumber: 8, setId: 'regular-set-2', steamerType: SteamerType.REGULAR, capacity: 5, capacityVerified: true, numberingProvisional: true },
-    // 電気せいろ (9〜12)
-    { tierNumber: 9, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: false, numberingProvisional: true },
-    { tierNumber: 10, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: false, numberingProvisional: true },
-    { tierNumber: 11, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: false, numberingProvisional: true },
-    { tierNumber: 12, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: false, numberingProvisional: true },
+    // 電気せいろ (9〜13): 5段×各6個
+    { tierNumber: 9, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: true, numberingProvisional: true },
+    { tierNumber: 10, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: true, numberingProvisional: true },
+    { tierNumber: 11, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: true, numberingProvisional: true },
+    { tierNumber: 12, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: true, numberingProvisional: true },
+    { tierNumber: 13, setId: 'electric-set-1', steamerType: SteamerType.ELECTRIC, capacity: 6, capacityVerified: true, numberingProvisional: true },
   ];
 
   return {
@@ -160,8 +161,8 @@ export function createDefaultEventConfig(overrides = {}) {
     unverifiedNotes: {
       butamanPriceAndShare: '豚まん500円/50%は過去条件のため再確認が必要',
       potatoCost: 'ポテト原価未精査（本部50%・出店者50%配分は確定）',
-      electricSteamerCapacity: '電気せいろ6個×4段は容量未確認',
-      tierNumbering: '1〜4 / 5〜8 / 9〜12 は段番号案であり確定ではない',
+      electricSteamerCapacity: '電気せいろは5段で6個ずつ（計30個）確定',
+      tierNumbering: '1〜4 / 5〜8 / 9〜13 は段番号案であり確定ではない',
       fryingProcess: '揚げ工程の詳細運用は未確認',
       multiDeviceSyncAndNotification: '複数スマホ同期方式・通信切断時・画面非表示中の通知は未検証',
     },

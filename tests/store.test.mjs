@@ -898,3 +898,57 @@ test('AC-13: 設定画面での目標・価格・在庫登録と、データ管�
   assert.equal(htmlRes.text.includes('tab-analytics'), true);
   assert.equal(htmlRes.text.includes('btn-save-settings'), true);
 });
+
+// =============================================================================
+// AC-14: 電気セイロが5段（9〜13段）存在し、各段6個（計30個）の容量計算が機能すること
+// =============================================================================
+test('AC-14: 電気セイロが5段（9〜13段）存在し、各段6個（計30個）入り、容量超過防止および一括投入が正しく機能すること', () => {
+  const store = new StoreManager();
+  const tiers = store.getSteamerTiersSnapshot();
+
+  // 1. 電気セイロの段を抽出
+  const electricTiers = tiers.filter((t) => t.setId === 'electric-set-1');
+  assert.equal(electricTiers.length, 5, '電気セイロは5段であること');
+
+  // 段番号が 9, 10, 11, 12, 13 であること
+  const tierNumbers = electricTiers.map((t) => t.tierNumber);
+  assert.deepEqual(tierNumbers, [9, 10, 11, 12, 13]);
+
+  // 各段の容量が 6個で確定済みであること
+  for (const t of electricTiers) {
+    assert.equal(t.capacity, 6, `第${t.tierNumber}段の容量は6個であること`);
+    assert.equal(t.capacityVerified, true, `第${t.tierNumber}段の容量は確定済みであること`);
+  }
+
+  // 2. 第9段へ6個投入できること
+  const batch6 = store.loadSteamerBatch({
+    tierNumber: 9,
+    productId: 'butaman',
+    qty: 6,
+  });
+  assert.equal(batch6.initialQty, 6);
+  assert.equal(batch6.remainingQty, 6);
+
+  // 3. 満杯の第9段へさらに1個追加しようとすると容量超過エラーになること
+  assert.throws(
+    () => {
+      store.loadSteamerBatch({
+        tierNumber: 9,
+        productId: 'butaman',
+        qty: 1,
+      });
+    },
+    /段番号 9 の容量超過です（定員:6個, 現在:6個, 追加:1個）/
+  );
+
+  // 4. 第13段（電気セイロの5段目）への一括投入（loadTierFull）できっかり6個入ること
+  const fullBatch13 = store.loadTierFull({ tierNumber: 13, productId: 'anbataman' });
+  assert.equal(fullBatch13.initialQty, 6);
+  assert.equal(fullBatch13.remainingQty, 6);
+  assert.equal(fullBatch13.productId, 'anbataman');
+
+  // 5. 全体キャパシティ: 通常8段×5個(40個) + 電気5段×6個(30個) = 70個
+  const totalCapacity = tiers.reduce((sum, t) => sum + t.capacity, 0);
+  assert.equal(totalCapacity, 70, '全13段の合計容量は70個であること');
+});
+

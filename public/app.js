@@ -832,7 +832,7 @@ function initStaticControls() {
   for (const t of store.eventConfig.tiers) {
     const opt = document.createElement('option');
     opt.value = String(t.tierNumber);
-    opt.textContent = `${t.tierNumber}段目 (${t.steamerType === 'ELECTRIC' ? '電気6個※未確認' : '通常5個'})`;
+    opt.textContent = `${t.tierNumber}段目 (${t.steamerType === 'ELECTRIC' ? '電気6個' : '通常5個'})`;
     tierSel.appendChild(opt);
   }
 
@@ -1362,7 +1362,7 @@ function renderSteamerWireframe() {
       },
       {
         setId: 'electric-set-1',
-        title: '電気せいろ (固定番号 9〜12段案 / 6個×4段 ※容量未確認)',
+        title: '電気せいろ (固定番号 9〜13段 / 6個×5段)',
         tiers: tiersSnap.filter((t) => t.setId === 'electric-set-1'),
       },
     ];
@@ -1452,13 +1452,15 @@ function renderIsometricSteamerStage(tiersSnap) {
         }
       }
 
-      // 1段に5個のスロットを生成（サイコロの5の目 ⚄ 配置）
+      // 1段にスロットを生成（通常5個: サイコロ⚄, 電気6個: サイコロ⚅）
       const slotsHtml = [];
       const capacity = tier.capacity || 5;
+      const is6Cap = capacity === 6;
+      const gridClass = is6Cap ? 'dice-6-grid' : 'dice-5-grid';
 
       for (let s = 1; s <= capacity; s++) {
         const item = slotMap.get(s);
-        const dicePosClass = `dice-pos-${s}`;
+        const dicePosClass = is6Cap ? `dice-pos-6-${s}` : `dice-pos-${s}`;
 
         if (!item) {
           // 空きスロット: ワンタップで投入開始
@@ -1500,14 +1502,14 @@ function renderIsometricSteamerStage(tiersSnap) {
         <div class="iso-tier-block ${hasReady ? 'has-ready' : ''}">
           <div class="iso-tier-header">
             <div class="iso-tier-badge">
-              <span>第${tier.tierNumber}段 (四角せいろ)</span>
+              <span>第${tier.tierNumber}段 (${is6Cap ? '電気セイロ・6個' : '角セイロ・5個'})</span>
               <span class="iso-tier-status-text">(${totalOccupied}/${capacity}個 ${hasReady ? '⚡販売可能' : totalOccupied > 0 ? '♨️蒸し中' : '空き'})</span>
             </div>
             <button type="button" class="btn-fill-tier" data-iso-fill-tier="${tier.tierNumber}">
               ＋ 空き枠を一括投入
             </button>
           </div>
-          <div class="dice-5-grid">
+          <div class="${gridClass}">
             ${slotsHtml.join('')}
           </div>
         </div>

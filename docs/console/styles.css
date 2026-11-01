@@ -609,7 +609,7 @@ body {
   color: #07090c;
 }
 
-/* サイコロの5の目（⚄）グリッドレイアウト */
+/* サイコロの5の目（⚄）グリッドレイアウト（通常せいろ: 5個） */
 .dice-5-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -631,6 +631,31 @@ body {
 .dice-pos-3 { grid-column: 2; grid-row: 2; } /* 中央 */
 .dice-pos-4 { grid-column: 1; grid-row: 3; } /* 左下 */
 .dice-pos-5 { grid-column: 3; grid-row: 3; } /* 右下 */
+
+/* サイコロの6の目（⚅）グリッドレイアウト（電気せいろ: 6個） */
+.dice-6-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  width: 100%;
+  max-width: 320px;
+  height: 250px;
+  margin: 10px auto 4px;
+  background: rgba(0, 229, 255, 0.03);
+  border: 1px dashed rgba(0, 229, 255, 0.25);
+  border-radius: 8px;
+  padding: 10px;
+  place-items: center;
+  gap: 4px 16px;
+}
+
+/* サイコロ6の目の各位置（左上、右上、左中、右中、左下、右下） */
+.dice-pos-6-1 { grid-column: 1; grid-row: 1; } /* 左上 */
+.dice-pos-6-2 { grid-column: 2; grid-row: 1; } /* 右上 */
+.dice-pos-6-3 { grid-column: 1; grid-row: 2; } /* 左中 */
+.dice-pos-6-4 { grid-column: 2; grid-row: 2; } /* 右中 */
+.dice-pos-6-5 { grid-column: 1; grid-row: 3; } /* 左下 */
+.dice-pos-6-6 { grid-column: 2; grid-row: 3; } /* 右下 */
 
 /* 豚まん1個スロット（サイコロの目） */
 .iso-slot-node {
